@@ -1,0 +1,263 @@
+{
+    "mcpServers": {
+        "telegram-rag-service": {
+            "command": "python",
+            "args": [
+                "-m",
+                "uvicorn",
+                "backend.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "DB_HOST": "localhost",
+                "DB_PORT": "5432",
+                "DB_NAME": "telegram_db",
+                "DB_USER": "postgres",
+                "REDIS_HOST": "localhost",
+                "REDIS_PORT": "6379"
+            },
+            "description": "Telegram RAG Service - семантический поиск по диалогам и управление сессиями",
+            "capabilities": {
+                "conversations": {
+                    "search": {
+                        "endpoint": "/conversations/search",
+                        "method": "POST",
+                        "description": "Семантический поиск по диалогам"
+                    },
+                    "messages": {
+                        "endpoint": "/conversations/messages",
+                        "method": "GET",
+                        "description": "Получение сообщений из чата"
+                    },
+                    "index": {
+                        "endpoint": "/conversations/index",
+                        "method": "POST",
+                        "description": "Индексация сообщений чата в RAG"
+                    },
+                    "stats": {
+                        "endpoint": "/conversations/stats",
+                        "method": "GET",
+                        "description": "Статистика по диалогам"
+                    },
+                    "context": {
+                        "endpoint": "/conversations/context/{message_id}",
+                        "method": "GET",
+                        "description": "Получение контекста вокруг сообщения"
+                    }
+                }
+            }
+        },
+        "database-service": {
+            "command": "docker",
+            "args": [
+                "compose",
+                "up",
+                "-d",
+                "postgres"
+            ],
+            "env": {
+                "COMPOSE_PROJECT_NAME": "telegram-rag"
+            },
+            "description": "PostgreSQL база данных с pgvector для векторного поиска"
+        },
+        "redis-service": {
+            "command": "docker",
+            "args": [
+                "compose",
+                "up",
+                "-d",
+                "redis"
+            ],
+            "env": {
+                "COMPOSE_PROJECT_NAME": "telegram-rag"
+            },
+            "description": "Redis для кэширования и очередей задач"
+        }
+    },
+    "tools": [
+        {
+            "name": "search_conversations",
+            "description": "Семантический поиск по диалогам Telegram с использованием RAG",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Поисковый запрос на естественном языке"
+                    },
+                    "chat_id": {
+                        "type": "integer",
+                        "description": "ID чата для фильтрации (опционально)"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Максимальное количество результатов",
+                        "default": 10
+                    },
+                    "session_id": {
+                        "type": "integer",
+                        "description": "ID сессии пользователя",
+                        "default": 1
+                    }
+                },
+                "required": [
+                    "query"
+                ]
+            }
+        },
+        {
+            "name": "get_messages",
+            "description": "Получение сообщений из конкретного чата",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "chat_id": {
+                        "type": "integer",
+                        "description": "ID чата"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Количество сообщений",
+                        "default": 50,
+                        "maximum": 200
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Смещение для пагинации",
+                        "default": 0
+                    },
+                    "session_id": {
+                        "type": "integer",
+                        "description": "ID сессии пользователя",
+                        "default": 1
+                    }
+                },
+                "required": [
+                    "chat_id"
+                ]
+            }
+        },
+        {
+            "name": "index_chat",
+            "description": "Индексация сообщений чата для семантического поиска",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "chat_id": {
+                        "type": "integer",
+                        "description": "ID чата для индексации"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Количество последних сообщений для индексации",
+                        "default": 100
+                    },
+                    "session_id": {
+                        "type": "integer",
+                        "description": "ID сессии пользователя",
+                        "default": 1
+                    }
+                },
+                "required": [
+                    "chat_id"
+                ]
+            }
+        },
+        {
+            "name": "get_stats",
+            "description": "Получение статистики по диалогам и индексации",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "integer",
+                        "description": "ID сессии пользователя",
+                        "default": 1
+                    }
+                }
+            }
+        },
+        {
+            "name": "get_context",
+            "description": "Получение контекста вокруг конкретного сообщения",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "message_id": {
+                        "type": "integer",
+                        "description": "ID сообщения"
+                    },
+                    "context_size": {
+                        "type": "integer",
+                        "description": "Количество сообщений до и после",
+                        "default": 5,
+                        "maximum": 20
+                    }
+                },
+                "required": [
+                    "message_id"
+                ]
+            }
+        }
+    ],
+    "resources": [
+        {
+            "uri": "telegram://conversations",
+            "name": "Диалоги Telegram",
+            "description": "Доступ к диалогам и сообщениям из Telegram",
+            "mimeType": "application/json"
+        },
+        {
+            "uri": "telegram://embeddings",
+            "name": "Векторные эмбеддинги",
+            "description": "Векторные представления сообщений для семантического поиска",
+            "mimeType": "application/json"
+        }
+    ],
+    "prompts": [
+        {
+            "name": "analyze_conversation",
+            "description": "Анализ диалога с использованием семантического поиска",
+            "arguments": [
+                {
+                    "name": "topic",
+                    "description": "Тема для анализа",
+                    "required": true
+                },
+                {
+                    "name": "chat_id",
+                    "description": "ID чата (опционально)",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "name": "summarize_chat",
+            "description": "Создание краткого резюме чата",
+            "arguments": [
+                {
+                    "name": "chat_id",
+                    "description": "ID чата для резюмирования",
+                    "required": true
+                },
+                {
+                    "name": "message_count",
+                    "description": "Количество последних сообщений",
+                    "required": false
+                }
+            ]
+        }
+    ],
+    "metadata": {
+        "name": "Telegram RAG Service",
+        "version": "1.0.0",
+        "description": "MCP сервер для работы с диалогами Telegram через RAG (Retrieval-Augmented Generation)",
+        "author": "Your Name",
+        "homepage": "http://localhost:8000",
+        "documentation": "http://localhost:8000/docs"
+    }
+}

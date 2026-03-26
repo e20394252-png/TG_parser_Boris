@@ -1,0 +1,43 @@
+# Environment
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Telegram sessions
+*.session
+*.session-journal
+sessions/
+
+# Database
+*.db
+*.sqlite
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Docker
+docker-compose.override.yml
+
+# Node
+node_modules/
+dist/
+build/
+.DS_Store

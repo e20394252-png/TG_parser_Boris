@@ -1,0 +1,71 @@
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: telegram-parser-db
+    env: docker
+    repo: https://github.com/render-examples/postgres-pgvector
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: POSTGRES_DB
+        value: telegram_parser
+      - key: POSTGRES_USER
+        value: parser_user
+      - key: POSTGRES_PASSWORD
+        generateValue: true
+      - key: PGDATA
+        value: /var/lib/postgresql/data/pgdata
+
+  # Redis Service
+  - type: pserv
+    name: telegram-parser-redis
+    env: docker
+    repo: https://github.com/render-examples/redis
+    plan: starter
+    envVars:
+      - key: REDIS_PASSWORD
+        generateValue: true
+
+  # Backend FastAPI
+  - type: web
+    name: telegram-parser-backend
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        value: postgresql://parser_user:${telegram-parser-db.POSTGRES_PASSWORD}@${telegram-parser-db.host}:5432/telegram_parser
+      - key: REDIS_URL
+        value: redis://:${telegram-parser-redis.REDIS_PASSWORD}@${telegram-parser-redis.host}:6379/0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: TELEGRAM_API_ID
+        sync: false
+      - key: TELEGRAM_API_HASH
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GOOGLE_AI_API_KEY
+        sync: false
+
+  # Frontend React
+  - type: web
+    name: telegram-parser-frontend
+    env: static
+    plan: starter
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://${telegram-parser-backend.host}
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://${telegram-parser-backend.host}/api/*
+      - type: file
+        source: /*
+        destination: /index.html

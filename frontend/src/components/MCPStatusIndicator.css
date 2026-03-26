@@ -1,0 +1,139 @@
+.mcp-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    background: var(--bg-darker);
+}
+
+.mcp-status-indicator:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.status-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    z-index: 1;
+}
+
+.status-text {
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+.status-icon {
+    flex-shrink: 0;
+}
+
+/* Status States */
+.mcp-status-indicator.online {
+    border-color: var(--neon-green);
+    background: rgba(0, 255, 128, 0.05);
+}
+
+.mcp-status-indicator.online .status-text {
+    color: var(--neon-green);
+}
+
+.mcp-status-indicator.online .status-icon {
+    color: var(--neon-green);
+    filter: drop-shadow(0 0 4px var(--neon-green));
+}
+
+.mcp-status-indicator.offline {
+    border-color: var(--neon-pink);
+    background: rgba(255, 0, 128, 0.05);
+}
+
+.mcp-status-indicator.offline .status-text {
+    color: var(--neon-pink);
+}
+
+.mcp-status-indicator.offline .status-icon {
+    color: var(--neon-pink);
+}
+
+.mcp-status-indicator.degraded {
+    border-color: #ffa500;
+    background: rgba(255, 165, 0, 0.05);
+}
+
+.mcp-status-indicator.degraded .status-text {
+    color: #ffa500;
+}
+
+.mcp-status-indicator.degraded .status-icon {
+    color: #ffa500;
+}
+
+.mcp-status-indicator.checking {
+    border-color: var(--neon-cyan);
+    background: rgba(0, 255, 255, 0.05);
+}
+
+.mcp-status-indicator.checking .status-text {
+    color: var(--neon-cyan);
+}
+
+.mcp-status-indicator.checking .status-icon {
+    color: var(--neon-cyan);
+    animation: spin 2s linear infinite;
+}
+
+/* Pulse Animation for Online Status */
+.status-pulse {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle, var(--neon-green) 0%, transparent 70%);
+    opacity: 0;
+    animation: pulse 2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+
+    50% {
+        opacity: 0.3;
+        transform: scale(1);
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .mcp-status-indicator {
+        padding: 8px 12px;
+    }
+
+    .status-text {
+        font-size: 0.8rem;
+    }
+}
