@@ -9,13 +9,15 @@ from datetime import datetime
 from database.database import db
 from services.telegram_client import TelegramClientManager
 from services.auto_responder import AutoResponder
-from services.rag_service import RAGService
+# Временно отключаем RAG сервис
+# from services.rag_service import RAGService
 
 class MessageMonitor:
     def __init__(self):
         self.telegram_manager = TelegramClientManager()
         self.auto_responder = AutoResponder()
-        self.rag_service = RAGService()
+        # Временно отключаем RAG сервис
+        # self.rag_service = RAGService()
         self.active_monitors: Dict[int, bool] = {}
     
     async def start_monitoring(self, session_id: int, api_id: int, api_hash: str, session_string: str):
@@ -74,7 +76,9 @@ class MessageMonitor:
             
             # Индексируем сообщение в RAG (асинхронно, не блокируем обработку)
             try:
-                await self.rag_service.index_conversation_message(conversation_message_id, session_id)
+                # Временно отключено
+                # await self.rag_service.index_conversation_message(conversation_message_id, session_id)
+                pass
             except Exception as e:
                 print(f"⚠️ Ошибка индексации сообщения в RAG: {str(e)}")
             

@@ -7,13 +7,15 @@ from typing import Dict
 from database.database import db
 from services.telegram_client import TelegramClientManager
 from services.mtp_service import MTPService
-from services.rag_service import RAGService
+# Временно отключаем RAG сервис
+# from services.rag_service import RAGService
 
 class AutoResponder:
     def __init__(self):
         self.telegram_manager = TelegramClientManager()
         self.mtp_service = MTPService()
-        self.rag_service = RAGService()
+        # Временно отключаем RAG сервис
+        # self.rag_service = RAGService()
     
     async def send_response(self, session_id: int, message_history_id: int, 
                            response: Dict, recipient_id: int):
@@ -99,10 +101,12 @@ class AutoResponder:
                 # Если используется RAG, получаем контекст
                 context = ""
                 if response['use_rag']:
-                    context = await self.rag_service.get_relevant_context(
-                        original_message,
-                        session_id
-                    )
+                    # Временно отключено
+                    # context = await self.rag_service.get_relevant_context(
+                    #     original_message,
+                    #     session_id
+                    # )
+                    context = ""
                 
                 # Генерируем через MTP
                 generated_text = await self.mtp_service.generate(

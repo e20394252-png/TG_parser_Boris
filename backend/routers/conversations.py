@@ -7,10 +7,11 @@ from typing import Optional, List
 from datetime import datetime
 
 from database.database import db
-from services.rag_service import RAGService
+# Временно отключаем RAG сервис для теста
+# from services.rag_service import RAGService
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
-rag_service = RAGService()
+# rag_service = RAGService()  # Временно отключено
 
 class SearchRequest(BaseModel):
     query: str
@@ -28,12 +29,16 @@ async def search_conversations(request: SearchRequest, session_id: Optional[int]
         if not session_id:
             session_id = 1  # TODO: получать из контекста авторизации
         
-        results = await rag_service.search_conversations(
-            query=request.query,
-            session_id=session_id,
-            chat_id=request.chat_id,
-            limit=request.limit
-        )
+        # Временно отключено - RAG сервис недоступен
+        # results = await rag_service.search_conversations(
+        #     query=request.query,
+        #     session_id=session_id,
+        #     chat_id=request.chat_id,
+        #     limit=request.limit
+        # )
+        
+        # Возвращаем пустой результат для теста
+        results = []
         
         return {
             "success": True,
@@ -107,7 +112,8 @@ async def index_chat(request: IndexRequest, session_id: Optional[int] = Query(No
         indexed_count = 0
         for msg in messages:
             try:
-                await rag_service.index_conversation_message(msg['id'], session_id)
+            # Временно отключено
+            # await rag_service.index_conversation_message(msg['id'], session_id)
                 indexed_count += 1
             except Exception as e:
                 print(f"⚠️ Ошибка индексации сообщения {msg['id']}: {str(e)}")
@@ -160,7 +166,9 @@ async def get_stats(session_id: Optional[int] = Query(None)):
 async def get_context(message_id: int, context_size: int = Query(5, le=20)):
     """Получение контекста вокруг сообщения"""
     try:
-        context = await rag_service.get_conversation_context(message_id, context_size)
+        # Временно отключено
+        # context = await rag_service.get_conversation_context(message_id, context_size)
+        context = []
         
         return {
             "success": True,
