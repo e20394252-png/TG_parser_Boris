@@ -183,6 +183,7 @@ async def generate_response(request: GenerateRequest):
             #     request.prompt,
             #     request.session_id
             # )
+            pass  # Временно отключено
         
         # Генерируем ответ через MTP
         response_text = await mtp_service.generate(
