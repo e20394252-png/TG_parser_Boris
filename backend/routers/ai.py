@@ -7,11 +7,12 @@ from typing import Optional, List
 import aiofiles
 
 from database.database import db
-from services.rag_service import RAGService
+# Временно отключаем RAG сервис
+# from services.rag_service import RAGService
 from services.mtp_service import MTPService
 
 router = APIRouter()
-rag_service = RAGService()
+# rag_service = RAGService()  # Временно отключено
 mtp_service = MTPService()
 
 class AIProviderCreate(BaseModel):
@@ -112,8 +113,8 @@ async def upload_rag_document(
             session_id, title, text_content, file.filename, 'text'
         )
         
-        # Индексируем документ (создаем embeddings)
-        await rag_service.index_document(document_id, text_content)
+        # Временно отключено - индексация документа
+        # await rag_service.index_document(document_id, text_content)
         
         return {
             "success": True,
@@ -175,12 +176,13 @@ async def generate_response(request: GenerateRequest):
     try:
         context = ""
         
-        # Если используется RAG, получаем релевантный контекст
+        # Временно отключено - получение контекста
+        context = ""
         if request.use_rag and request.session_id:
-            context = await rag_service.get_relevant_context(
-                request.prompt,
-                request.session_id
-            )
+            # context = await rag_service.get_relevant_context(
+            #     request.prompt,
+            #     request.session_id
+            # )
         
         # Генерируем ответ через MTP
         response_text = await mtp_service.generate(
