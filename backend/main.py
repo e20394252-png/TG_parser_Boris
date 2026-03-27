@@ -12,7 +12,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from database.database import db
-from routers import auth, monitoring, responses, ai, statistics, conversations, settings, mcp_status
+from routers import auth, monitoring, responses, statistics, conversations, settings, mcp_status
+# Временно отключаем AI роутер для теста
+# from routers import ai
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,7 +55,8 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(monitoring.router, prefix="/api/monitoring", tags=["Monitoring"])
 app.include_router(responses.router, prefix="/api/responses", tags=["Responses"])
-app.include_router(ai.router, prefix="/api/ai", tags=["AI & RAG"])
+# Временно отключаем AI роутер
+# app.include_router(ai.router, prefix="/api/ai", tags=["AI & RAG"])
 app.include_router(statistics.router, prefix="/api/statistics", tags=["Statistics"])
 app.include_router(conversations.router, prefix="/api/conversations", tags=["Conversations"])
 app.include_router(settings.router, prefix="/api/settings", tags=["Settings"])
