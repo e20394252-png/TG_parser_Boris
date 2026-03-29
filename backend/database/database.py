@@ -13,7 +13,7 @@ class Database:
             'postgresql://parser_user:secure_password_change_me@localhost:5432/telegram_parser')
     
     async def connect(self):
-        """Создание пула соединений"""
+        """Создание пула соединений и инициализация таблиц"""
         if not self.pool:
             self.pool = await asyncpg.create_pool(
                 self.database_url,
@@ -22,6 +22,25 @@ class Database:
                 command_timeout=60
             )
             print("✅ Database pool created")
+            
+            # Выполняем инициализацию таблиц
+            await self.init_database()
+    
+    async def init_database(self):
+        """Инициализация таблиц из init.sql"""
+        try:
+            # Читаем init.sql файл
+            with open('database/init.sql', 'r', encoding='utf-8') as f:
+                init_sql = f.read()
+            
+            # Выполняем SQL
+            async with self.pool.acquire() as conn:
+                await conn.execute(init_sql)
+            
+            print("✅ Database tables initialized")
+        except Exception as e:
+            print(f"⚠️ Database initialization error: {str(e)}")
+            # Не прерываем работу, если таблицы уже существуют
     
     async def disconnect(self):
         """Закрытие пула соединений"""
