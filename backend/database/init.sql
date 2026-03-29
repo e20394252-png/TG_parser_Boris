@@ -2,7 +2,7 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Таблица пользователей системы
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE users (
 );
 
 -- Таблица Telegram сессий
-CREATE TABLE telegram_sessions (
+CREATE TABLE IF NOT EXISTS telegram_sessions (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     phone_number VARCHAR(20) UNIQUE NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE telegram_sessions (
 );
 
 -- Таблица отслеживаемых чатов
-CREATE TABLE monitored_chats (
+CREATE TABLE IF NOT EXISTS monitored_chats (
     id SERIAL PRIMARY KEY,
     session_id INTEGER REFERENCES telegram_sessions(id) ON DELETE CASCADE,
     chat_id BIGINT NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE monitored_chats (
 );
 
 -- Таблица фильтров сообщений
-CREATE TABLE message_filters (
+CREATE TABLE IF NOT EXISTS message_filters (
     id SERIAL PRIMARY KEY,
     session_id INTEGER REFERENCES telegram_sessions(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
@@ -48,14 +48,14 @@ CREATE TABLE message_filters (
 );
 
 -- Таблица связи фильтров и чатов
-CREATE TABLE filter_chat_mapping (
+CREATE TABLE IF NOT EXISTS filter_chat_mapping (
     filter_id INTEGER REFERENCES message_filters(id) ON DELETE CASCADE,
     chat_id INTEGER REFERENCES monitored_chats(id) ON DELETE CASCADE,
     PRIMARY KEY (filter_id, chat_id)
 );
 
 -- Таблица шаблонов автоответов
-CREATE TABLE auto_responses (
+CREATE TABLE IF NOT EXISTS auto_responses (
     id SERIAL PRIMARY KEY,
     session_id INTEGER REFERENCES telegram_sessions(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
@@ -69,14 +69,14 @@ CREATE TABLE auto_responses (
 );
 
 -- Таблица связи фильтров и автоответов
-CREATE TABLE filter_response_mapping (
+CREATE TABLE IF NOT EXISTS filter_response_mapping (
     filter_id INTEGER REFERENCES message_filters(id) ON DELETE CASCADE,
     response_id INTEGER REFERENCES auto_responses(id) ON DELETE CASCADE,
     PRIMARY KEY (filter_id, response_id)
 );
 
 -- Таблица истории сообщений
-CREATE TABLE message_history (
+CREATE TABLE IF NOT EXISTS message_history (
     id SERIAL PRIMARY KEY,
     session_id INTEGER REFERENCES telegram_sessions(id) ON DELETE CASCADE,
     chat_id BIGINT NOT NULL,
@@ -91,7 +91,7 @@ CREATE TABLE message_history (
 );
 
 -- Таблица отправленных ответов
-CREATE TABLE sent_responses (
+CREATE TABLE IF NOT EXISTS sent_responses (
     id SERIAL PRIMARY KEY,
     message_history_id INTEGER REFERENCES message_history(id) ON DELETE CASCADE,
     response_id INTEGER REFERENCES auto_responses(id) ON DELETE SET NULL,
@@ -103,7 +103,7 @@ CREATE TABLE sent_responses (
 );
 
 -- Таблица статистики
-CREATE TABLE statistics (
+CREATE TABLE IF NOT EXISTS statistics (
     id SERIAL PRIMARY KEY,
     session_id INTEGER REFERENCES telegram_sessions(id) ON DELETE CASCADE,
     date DATE NOT NULL,
@@ -115,7 +115,7 @@ CREATE TABLE statistics (
 );
 
 -- Таблица AI провайдеров (MTP)
-CREATE TABLE ai_providers (
+CREATE TABLE IF NOT EXISTS ai_providers (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     provider_type VARCHAR(50) NOT NULL, -- 'openai', 'anthropic', 'google', 'local'
@@ -130,7 +130,7 @@ CREATE TABLE ai_providers (
 );
 
 -- Таблица документов для RAG
-CREATE TABLE rag_documents (
+CREATE TABLE IF NOT EXISTS rag_documents (
     id SERIAL PRIMARY KEY,
     session_id INTEGER REFERENCES telegram_sessions(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
@@ -142,7 +142,7 @@ CREATE TABLE rag_documents (
 );
 
 -- Таблица векторных embeddings для RAG
-CREATE TABLE rag_embeddings (
+CREATE TABLE IF NOT EXISTS rag_embeddings (
     id SERIAL PRIMARY KEY,
     document_id INTEGER REFERENCES rag_documents(id) ON DELETE CASCADE,
     chunk_text TEXT NOT NULL,
@@ -152,7 +152,7 @@ CREATE TABLE rag_embeddings (
 );
 
 -- Таблица всех сообщений из диалогов (для семантического поиска)
-CREATE TABLE conversation_messages (
+CREATE TABLE IF NOT EXISTS conversation_messages (
     id SERIAL PRIMARY KEY,
     session_id INTEGER REFERENCES telegram_sessions(id) ON DELETE CASCADE,
     chat_id BIGINT NOT NULL,
@@ -168,7 +168,7 @@ CREATE TABLE conversation_messages (
 );
 
 -- Таблица embeddings для диалогов (RAG поиск по смыслам)
-CREATE TABLE conversation_embeddings (
+CREATE TABLE IF NOT EXISTS conversation_embeddings (
     id SERIAL PRIMARY KEY,
     message_id INTEGER REFERENCES conversation_messages(id) ON DELETE CASCADE,
     session_id INTEGER REFERENCES telegram_sessions(id) ON DELETE CASCADE,
@@ -179,7 +179,7 @@ CREATE TABLE conversation_embeddings (
 );
 
 -- Таблица настроек пользователя
-CREATE TABLE user_settings (
+CREATE TABLE IF NOT EXISTS user_settings (
     id SERIAL PRIMARY KEY,
     session_id INTEGER REFERENCES telegram_sessions(id) ON DELETE CASCADE,
     setting_key TEXT NOT NULL,
@@ -190,24 +190,24 @@ CREATE TABLE user_settings (
 
 
 -- Индексы для оптимизации
-CREATE INDEX idx_telegram_sessions_user ON telegram_sessions(user_id);
-CREATE INDEX idx_monitored_chats_session ON monitored_chats(session_id);
-CREATE INDEX idx_message_filters_session ON message_filters(session_id);
-CREATE INDEX idx_message_history_session ON message_history(session_id);
-CREATE INDEX idx_message_history_chat ON message_history(chat_id);
-CREATE INDEX idx_sent_responses_message ON sent_responses(message_history_id);
-CREATE INDEX idx_statistics_session_date ON statistics(session_id, date);
-CREATE INDEX idx_rag_embeddings_document ON rag_embeddings(document_id);
-CREATE INDEX idx_conversation_messages_chat ON conversation_messages(chat_id, message_date DESC);
-CREATE INDEX idx_conversation_messages_session ON conversation_messages(session_id);
-CREATE INDEX idx_conversation_messages_sender ON conversation_messages(sender_id);
-CREATE INDEX idx_conversation_embeddings_session ON conversation_embeddings(session_id);
-CREATE INDEX idx_conversation_embeddings_message ON conversation_embeddings(message_id);
-CREATE INDEX idx_user_settings_session ON user_settings(session_id);
+CREATE INDEX IF NOT EXISTS idx_telegram_sessions_user ON telegram_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_monitored_chats_session ON monitored_chats(session_id);
+CREATE INDEX IF NOT EXISTS idx_message_filters_session ON message_filters(session_id);
+CREATE INDEX IF NOT EXISTS idx_message_history_session ON message_history(session_id);
+CREATE INDEX IF NOT EXISTS idx_message_history_chat ON message_history(chat_id);
+CREATE INDEX IF NOT EXISTS idx_sent_responses_message ON sent_responses(message_history_id);
+CREATE INDEX IF NOT EXISTS idx_statistics_session_date ON statistics(session_id, date);
+CREATE INDEX IF NOT EXISTS idx_rag_embeddings_document ON rag_embeddings(document_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_chat ON conversation_messages(chat_id, message_date DESC);
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_session ON conversation_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_sender ON conversation_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_embeddings_session ON conversation_embeddings(session_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_embeddings_message ON conversation_embeddings(message_id);
+CREATE INDEX IF NOT EXISTS idx_user_settings_session ON user_settings(session_id);
 
 -- Индекс для векторного поиска (cosine similarity)
-CREATE INDEX idx_rag_embeddings_vector ON rag_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-CREATE INDEX idx_conversation_embeddings_vector ON conversation_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_rag_embeddings_vector ON rag_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_conversation_embeddings_vector ON conversation_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
 
 -- Триггер для обновления updated_at
@@ -219,16 +219,28 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_telegram_sessions_updated_at BEFORE UPDATE ON telegram_sessions
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_telegram_sessions_updated_at') THEN
+        CREATE TRIGGER update_telegram_sessions_updated_at BEFORE UPDATE ON telegram_sessions
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+END $$;
 
-CREATE TRIGGER update_rag_documents_updated_at BEFORE UPDATE ON rag_documents
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_rag_documents_updated_at') THEN
+        CREATE TRIGGER update_rag_documents_updated_at BEFORE UPDATE ON rag_documents
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+END $$;
 
 -- Вставка дефолтного пользователя (admin/admin - ИЗМЕНИТЬ В ПРОДАКШЕНЕ!)
 INSERT INTO users (username, password_hash) 
-VALUES ('admin', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqVr/qvIuW'); -- пароль: admin
+VALUES ('admin', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqVr/qvIuW') 
+ON CONFLICT (username) DO NOTHING; -- пароль: admin
 
 -- Вставка примера AI провайдера
 INSERT INTO ai_providers (name, provider_type, model_name, is_active, priority)
-VALUES ('OpenAI GPT-4', 'openai', 'gpt-4-turbo-preview', true, 1);
+SELECT 'OpenAI GPT-4', 'openai', 'gpt-4-turbo-preview', true, 1
+WHERE NOT EXISTS (SELECT 1 FROM ai_providers WHERE name = 'OpenAI GPT-4');

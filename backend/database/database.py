@@ -35,11 +35,25 @@ class Database:
             
             # Выполняем SQL
             async with self.pool.acquire() as conn:
-                await conn.execute(init_sql)
-            
-            print("✅ Database tables initialized")
+                try:
+                    await conn.execute(init_sql)
+                    print("✅ Database tables initialized")
+                except Exception as e:
+                    print(f"⚠️ Batch database initialization error: {str(e)}")
+                    print("🔄 Retrying statement by statement...")
+                    import re
+                    # Простой парсинг на блоки: CREATE TABLE, CREATE INDEX, CREATE OR REPLACE, DO, INSERT
+                    blocks = re.split(r'(?m)^(?=CREATE |DO \$\$|INSERT )', init_sql)
+                    for block in blocks:
+                        stmt = block.strip()
+                        if stmt and not stmt.startswith('--'):
+                            try:
+                                await conn.execute(stmt)
+                            except Exception as stmt_err:
+                                print(f"⚠️ Failed to execute block: {str(stmt_err)}")
+                    print("✅ Fallback database initialization finished")
         except Exception as e:
-            print(f"⚠️ Database initialization error: {str(e)}")
+            print(f"⚠️ Database initialization outer error: {str(e)}")
             # Не прерываем работу, если таблицы уже существуют
     
     async def disconnect(self):
