@@ -1,0 +1,6 @@
+ix  service - disable  libraries completely
+
+- emove all  library imports (openai, anthropic, google)
+- reate stub methods that return placeholder messages
+- llow application to start without  dependencies
+- eep basic functionality for testing deployment
