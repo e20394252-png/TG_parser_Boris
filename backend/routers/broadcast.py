@@ -99,6 +99,12 @@ async def run_broadcast(task_id: int, session_id: int, api_id: int,
 
 # ──────────────── Endpoints ────────────────
 
+@router.get("/ping")
+async def broadcast_ping():
+    """Диагностический эндпоинт — проверяет что роутер зарегистрирован"""
+    return {"ok": True, "router": "broadcast", "routes": ["/ping", "/send", "/status/{task_id}", "/history"]}
+
+
 @router.post("/send", response_model=BroadcastResponse, status_code=status.HTTP_202_ACCEPTED)
 async def start_broadcast(data: BroadcastRequest, background_tasks: BackgroundTasks):
     """

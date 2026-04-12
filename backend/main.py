@@ -70,6 +70,19 @@ async def root():
         "docs": "/docs"
     }
 
+@app.get("/debug/routes")
+async def debug_routes():
+    """Список всех зарегистрированных маршрутов — для диагностики"""
+    routes = []
+    for route in app.routes:
+        if hasattr(route, "methods"):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods),
+                "name": route.name,
+            })
+    return {"total": len(routes), "routes": sorted(routes, key=lambda r: r["path"])}
+
 @app.get("/health")
 async def health_check():
     """Проверка здоровья сервиса"""
