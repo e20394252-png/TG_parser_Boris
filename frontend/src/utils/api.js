@@ -111,5 +111,12 @@ export const settingsAPI = {
     delete: (key) => api.delete(`/settings/${key}`),
 };
 
+// Broadcast
+export const broadcastAPI = {
+    send:       (data)   => api.post('/broadcast/send', data),
+    getHistory: ()       => api.get('/broadcast/history'),
+    getStatus:  (taskId) => api.get(`/broadcast/status/${taskId}`),
+};
+
 export default api;
 

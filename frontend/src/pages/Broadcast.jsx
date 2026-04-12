@@ -3,8 +3,7 @@ import {
     Send, Users, Clock, CheckCircle, XCircle,
     AlertCircle, Loader, ChevronDown, ChevronUp, Trash2
 } from 'lucide-react';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { broadcastAPI } from '../utils/api';
 
 /* ──────────────────────────────────────────────
    Helpers
@@ -52,9 +51,8 @@ function TaskRow({ task }) {
     async function loadDetail() {
         if (detail) { setOpen(o => !o); return; }
         try {
-            const r = await fetch(`${API_BASE}/broadcast/status/${task.id}`);
-            const d = await r.json();
-            setDetail(d);
+            const { data } = await broadcastAPI.getStatus(task.id);
+            setDetail(data);
             setOpen(true);
         } catch { /* ignore */ }
     }
@@ -142,9 +140,8 @@ export default function Broadcast() {
     // ── Load history
     async function loadHistory() {
         try {
-            const r = await fetch(`${API_BASE}/broadcast/history`);
-            const d = await r.json();
-            setTasks(d.tasks || []);
+            const { data } = await broadcastAPI.getHistory();
+            setTasks(data.tasks || []);
         } catch {
             setTasks([]);
         } finally {
@@ -166,22 +163,12 @@ export default function Broadcast() {
         setResult(null);
 
         try {
-            const res = await fetch(`${API_BASE}/broadcast/send`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    text,
-                    recipients: parsedList,
-                    delay_seconds: delay,
-                }),
+            const { data } = await broadcastAPI.send({
+                text,
+                recipients: parsedList,
+                delay_seconds: delay,
             });
 
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.detail || 'Ошибка запроса');
-            }
-
-            const data = await res.json();
             setResult({ type: 'success', msg: `Рассылка #${data.task_id} запущена для ${data.total} получателей` });
 
             // Poll for updates
@@ -190,7 +177,8 @@ export default function Broadcast() {
             setTimeout(() => clearInterval(pollRef.current), 120_000);
 
         } catch (e) {
-            setResult({ type: 'error', msg: e.message });
+            const msg = e.response?.data?.detail || e.message || 'Ошибка запроса';
+            setResult({ type: 'error', msg });
         } finally {
             setSending(false);
         }
