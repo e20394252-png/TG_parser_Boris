@@ -117,6 +117,33 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
 
 # ──────────────── Endpoints ────────────────
 
+class PasswordLoginRequest(BaseModel):
+    password: str
+
+
+@router.post("/password", response_model=LoginResponse)
+async def login_via_password(data: PasswordLoginRequest):
+    """
+    Резервный вход по паролю администратора.
+    Пароль задаётся через env-переменную ADMIN_PASSWORD.
+    """
+    admin_password = os.getenv("ADMIN_PASSWORD", "")
+    if not admin_password:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Вход по паролю не настроен (ADMIN_PASSWORD не задан)"
+        )
+    if data.password != admin_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Неверный пароль"
+        )
+    token = create_jwt(0, "admin", "Administrator")
+    user_info = {"id": 0, "first_name": "Administrator", "last_name": None, "username": "admin", "photo_url": None}
+    logger.info("✅ Login via password (admin)")
+    return LoginResponse(token=token, user=user_info)
+
+
 @router.post("/telegram", response_model=LoginResponse)
 async def login_via_telegram(data: TelegramAuthData):
     """

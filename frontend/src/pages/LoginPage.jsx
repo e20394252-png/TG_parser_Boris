@@ -9,6 +9,8 @@ export default function LoginPage() {
     const [error,   setError]   = useState('');
     const [loading, setLoading] = useState(false);
     const [botName, setBotName] = useState(BOT_NAME);
+    const [usePassword, setUsePassword] = useState(false);
+    const [password, setPassword] = useState('');
     const widgetRef = useRef(null);
 
     // Получаем имя бота с бэкенда (если не задано в env)
@@ -22,7 +24,7 @@ export default function LoginPage() {
 
     // Вставляем виджет как только botName известен
     useEffect(() => {
-        if (!botName || !widgetRef.current) return;
+        if (!botName || !widgetRef.current || usePassword) return;
 
         // Очищаем предыдущий виджет
         widgetRef.current.innerHTML = '';
@@ -59,7 +61,27 @@ export default function LoginPage() {
         widgetRef.current.appendChild(script);
 
         return () => { delete window.onTelegramAuth; };
-    }, [botName, login]);
+    }, [botName, login, usePassword]);
+
+    const handlePasswordLogin = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        try {
+            const res = await fetch(`${API_BASE}/login/password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Неверный пароль');
+            login(data.token, data.user);
+        } catch (e) {
+            setError(e.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div style={styles.root}>
@@ -82,12 +104,25 @@ export default function LoginPage() {
 
                 <h1 style={styles.heading}>Добро пожаловать</h1>
                 <p style={styles.subheading}>
-                    Войдите через Telegram, чтобы получить доступ к сервису
+                    {usePassword ? 'Введите пароль для входа' : 'Войдите через Telegram, чтобы получить доступ к сервису'}
                 </p>
 
-                {/* Виджет */}
+                {/* Виджет или Пароль */}
                 <div style={styles.widgetWrap}>
-                    {!botName ? (
+                    {usePassword ? (
+                        <form onSubmit={handlePasswordLogin} style={{ width: '100%' }}>
+                            <input 
+                                type="password" 
+                                value={password} 
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Введите пароль"
+                                style={styles.input}
+                            />
+                            <button type="submit" style={styles.button} disabled={loading}>
+                                {loading ? 'Вход...' : 'Войти'}
+                            </button>
+                        </form>
+                    ) : !botName ? (
                         <div style={styles.noBot}>
                             ⚠️ Имя бота не задано.<br />
                             <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
@@ -107,6 +142,15 @@ export default function LoginPage() {
                         {error}
                     </div>
                 )}
+
+                <div style={{ marginTop: 10 }}>
+                    <button 
+                        onClick={() => setUsePassword(!usePassword)} 
+                        style={styles.linkButton}
+                    >
+                        {usePassword ? 'Войти через Telegram' : 'Войти по паролю'}
+                    </button>
+                </div>
 
                 <p style={styles.hint}>
                     🔒 Доступ разрешён только для авторизованных пользователей
