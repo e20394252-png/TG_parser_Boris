@@ -36,19 +36,13 @@ async def seed_users():
 
     for username, password, role in entries:
         try:
-            existing = await db.fetchrow(
-                "SELECT id FROM users WHERE username = $1", username
-            )
-            if existing:
-                logger.info(f"[seed] User '{username}' already exists — skip")
-                continue
-
             hashed = _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
             await db.execute(
-                "INSERT INTO users (username, password_hash) VALUES ($1, $2)",
+                """INSERT INTO users (username, password_hash)
+                   VALUES ($1, $2)
+                   ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash""",
                 username, hashed
             )
-            logger.info(f"[seed] ✅ Created user '{username}' (role={role})")
-
+            logger.info(f"[seed] ✅ Upserted user '{username}' (role={role})")
         except Exception as e:
-            logger.error(f"[seed] ❌ Failed to create user '{username}': {e}")
+            logger.error(f"[seed] ❌ Failed to upsert user '{username}': {e}")
