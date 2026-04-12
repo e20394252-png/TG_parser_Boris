@@ -1,0 +1,353 @@
+import { useState, useEffect, useRef } from 'react';
+import {
+    Send, Users, Clock, CheckCircle, XCircle,
+    AlertCircle, Loader, ChevronDown, ChevronUp, Trash2
+} from 'lucide-react';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+/* ──────────────────────────────────────────────
+   Helpers
+─────────────────────────────────────────────── */
+function parseRecipients(raw) {
+    return raw
+        .split(/[\n,;]+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+}
+
+function StatusBadge({ status }) {
+    const map = {
+        running: { color: 'var(--neon-cyan)',    label: 'Отправляется' },
+        done:    { color: 'var(--neon-green)',   label: 'Завершено'    },
+        failed:  { color: 'var(--neon-pink)',    label: 'Ошибка'       },
+        pending: { color: 'var(--text-muted)',   label: 'В очереди'    },
+    };
+    const { color, label } = map[status] || map.pending;
+    return (
+        <span style={{
+            display: 'inline-block',
+            padding: '3px 10px',
+            borderRadius: 12,
+            fontSize: '0.78rem',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            color,
+            border: `1px solid ${color}`,
+            background: `${color}22`,
+        }}>
+            {label}
+        </span>
+    );
+}
+
+/* ──────────────────────────────────────────────
+   Task history row
+─────────────────────────────────────────────── */
+function TaskRow({ task }) {
+    const [open, setOpen] = useState(false);
+    const [detail, setDetail] = useState(null);
+
+    async function loadDetail() {
+        if (detail) { setOpen(o => !o); return; }
+        try {
+            const r = await fetch(`${API_BASE}/api/broadcast/status/${task.id}`);
+            const d = await r.json();
+            setDetail(d);
+            setOpen(true);
+        } catch { /* ignore */ }
+    }
+
+    const pct = task.total_count > 0
+        ? Math.round(((task.sent_count || 0) / task.total_count) * 100)
+        : 0;
+
+    return (
+        <div className="broadcast-task-row">
+            <div className="broadcast-task-header" onClick={loadDetail}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                    <StatusBadge status={task.status} />
+                    <span className="broadcast-task-text" title={task.message_text}>
+                        {task.message_text}
+                    </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {new Date(task.created_at).toLocaleString('ru')}
+                    </span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        <span style={{ color: 'var(--neon-green)', fontSize: '0.9rem' }}>
+                            ✓{task.sent_count || 0}
+                        </span>
+                        <span style={{ color: 'var(--neon-pink)', fontSize: '0.9rem' }}>
+                            ✗{task.failed_count || 0}
+                        </span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            /{task.total_count}
+                        </span>
+                    </div>
+                    {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </div>
+            </div>
+
+            {/* Progress bar */}
+            <div className="broadcast-progress-bg">
+                <div className="broadcast-progress-fill" style={{ width: `${pct}%` }} />
+            </div>
+
+            {/* Detail */}
+            {open && detail && (
+                <div className="broadcast-detail">
+                    {detail.results.map((r, i) => (
+                        <div key={i} className="broadcast-result-item">
+                            {r.success
+                                ? <CheckCircle size={14} color="var(--neon-green)" />
+                                : <XCircle   size={14} color="var(--neon-pink)"  />
+                            }
+                            <span style={{ flex: 1 }}>{r.recipient}</span>
+                            {r.error && (
+                                <span style={{ color: 'var(--neon-pink)', fontSize: '0.8rem' }}>
+                                    {r.error}
+                                </span>
+                            )}
+                        </div>
+                    ))}
+                    {detail.results.length === 0 && (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            Нет данных
+                        </span>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+/* ──────────────────────────────────────────────
+   Main page
+─────────────────────────────────────────────── */
+export default function Broadcast() {
+    const [text, setText]         = useState('');
+    const [recipients, setRecs]   = useState('');
+    const [delay, setDelay]       = useState(3);
+    const [sending, setSending]   = useState(false);
+    const [result, setResult]     = useState(null);   // { type: 'success'|'error', msg }
+    const [tasks, setTasks]       = useState([]);
+    const [loadingTasks, setLT]   = useState(true);
+    const pollRef                 = useRef(null);
+
+    const parsedList = parseRecipients(recipients);
+
+    // ── Load history
+    async function loadHistory() {
+        try {
+            const r = await fetch(`${API_BASE}/api/broadcast/history`);
+            const d = await r.json();
+            setTasks(d.tasks || []);
+        } catch {
+            setTasks([]);
+        } finally {
+            setLT(false);
+        }
+    }
+
+    useEffect(() => {
+        loadHistory();
+        return () => clearInterval(pollRef.current);
+    }, []);
+
+    // ── Send broadcast
+    async function handleSend() {
+        if (!text.trim()) { setResult({ type: 'error', msg: 'Введите текст сообщения' }); return; }
+        if (parsedList.length === 0) { setResult({ type: 'error', msg: 'Добавьте хотя бы одного получателя' }); return; }
+
+        setSending(true);
+        setResult(null);
+
+        try {
+            const res = await fetch(`${API_BASE}/api/broadcast/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text,
+                    recipients: parsedList,
+                    delay_seconds: delay,
+                }),
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Ошибка запроса');
+            }
+
+            const data = await res.json();
+            setResult({ type: 'success', msg: `Рассылка #${data.task_id} запущена для ${data.total} получателей` });
+
+            // Poll for updates
+            await loadHistory();
+            pollRef.current = setInterval(loadHistory, 4000);
+            setTimeout(() => clearInterval(pollRef.current), 120_000);
+
+        } catch (e) {
+            setResult({ type: 'error', msg: e.message });
+        } finally {
+            setSending(false);
+        }
+    }
+
+    function clearForm() {
+        setText('');
+        setRecs('');
+        setResult(null);
+    }
+
+    /* ── Render */
+    return (
+        <div className="broadcast-page">
+            {/* Header */}
+            <div className="page-header">
+                <h1 className="page-title" style={{
+                    background: 'linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta))',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                }}>
+                    📨 Рассылка
+                </h1>
+                <p className="page-subtitle">
+                    Массовая отправка сообщений через активную Telegram-сессию
+                </p>
+            </div>
+
+            <div className="broadcast-layout">
+
+                {/* ── Left: compose form */}
+                <div className="broadcast-form-card card">
+                    <h2 className="card-section-title">
+                        <Send size={18} style={{ marginRight: 8 }} />
+                        Новая рассылка
+                    </h2>
+
+                    {/* Alert */}
+                    {result && (
+                        <div className={`broadcast-alert broadcast-alert--${result.type}`}>
+                            {result.type === 'success'
+                                ? <CheckCircle size={16} />
+                                : <AlertCircle size={16} />
+                            }
+                            <span>{result.msg}</span>
+                        </div>
+                    )}
+
+                    {/* Text */}
+                    <div className="form-group">
+                        <label className="form-label">
+                            Текст сообщения
+                            <span style={{ color: 'var(--neon-pink)', marginLeft: 4 }}>*</span>
+                        </label>
+                        <textarea
+                            className="broadcast-textarea"
+                            rows={7}
+                            placeholder="Введите текст, который будет отправлен каждому получателю..."
+                            value={text}
+                            onChange={e => setText(e.target.value)}
+                        />
+                        <div className="broadcast-char-count">
+                            {text.length} символов
+                        </div>
+                    </div>
+
+                    {/* Recipients */}
+                    <div className="form-group">
+                        <label className="form-label">
+                            <Users size={15} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                            Список для рассылки
+                            <span style={{ color: 'var(--neon-pink)', marginLeft: 4 }}>*</span>
+                        </label>
+                        <textarea
+                            className="broadcast-textarea broadcast-textarea--recipients"
+                            rows={8}
+                            placeholder={
+                                "@username\nt.me/username\nhttps://t.me/another_user\n\nКаждый с новой строки (или через запятую)"
+                            }
+                            value={recipients}
+                            onChange={e => setRecs(e.target.value)}
+                        />
+                        {parsedList.length > 0 && (
+                            <div className="broadcast-recipients-count">
+                                <Users size={13} />
+                                Распознано: <strong>{parsedList.length}</strong> получателей
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Delay */}
+                    <div className="form-group">
+                        <label className="form-label">
+                            <Clock size={15} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                            Задержка между отправками (сек)
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <input
+                                type="range"
+                                min={1} max={30} step={0.5}
+                                value={delay}
+                                onChange={e => setDelay(Number(e.target.value))}
+                                className="broadcast-range"
+                            />
+                            <span className="broadcast-range-val">{delay}с</span>
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                            Минимум 3 сек. — защита от блокировки аккаунта
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                        <button
+                            className="btn btn-primary broadcast-send-btn"
+                            onClick={handleSend}
+                            disabled={sending}
+                        >
+                            {sending
+                                ? <><Loader size={16} className="spin" /> Запускаю...</>
+                                : <><Send size={16} /> Отправить рассылку</>
+                            }
+                        </button>
+                        <button
+                            className="btn btn-ghost"
+                            onClick={clearForm}
+                            title="Очистить форму"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* ── Right: history */}
+                <div className="broadcast-history-card card">
+                    <h2 className="card-section-title">
+                        История рассылок
+                    </h2>
+
+                    {loadingTasks ? (
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+                            <Loader size={24} className="spin" style={{ color: 'var(--neon-cyan)' }} />
+                        </div>
+                    ) : tasks.length === 0 ? (
+                        <div className="empty-state" style={{ padding: '40px 20px' }}>
+                            <Send size={40} style={{ color: 'var(--text-muted)', marginBottom: 12 }} />
+                            <h3>Нет рассылок</h3>
+                            <p>Запустите вашу первую рассылку слева</p>
+                        </div>
+                    ) : (
+                        <div className="broadcast-tasks-list">
+                            {tasks.map(t => <TaskRow key={t.id} task={t} />)}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}

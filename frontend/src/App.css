@@ -698,3 +698,290 @@ tr:hover {
     vertical-align: middle;
     margin-right: 8px;
 }
+
+/* ═══════════════════════════════════════════
+   Broadcast Page
+═══════════════════════════════════════════ */
+.broadcast-page {
+    max-width: 1400px;
+}
+
+.broadcast-layout {
+    display: grid;
+    grid-template-columns: 480px 1fr;
+    gap: 28px;
+    align-items: flex-start;
+}
+
+@media (max-width: 1100px) {
+    .broadcast-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Card base shared */
+.broadcast-form-card,
+.broadcast-history-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+}
+
+.broadcast-form-card::before,
+.broadcast-history-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 3px;
+    background: linear-gradient(90deg, var(--neon-cyan), var(--neon-magenta));
+}
+
+.card-section-title {
+    display: flex;
+    align-items: center;
+    font-size: 1.1rem;
+    font-family: var(--font-heading);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--neon-cyan);
+    margin: 0 0 24px;
+}
+
+/* ── Textareas */
+.broadcast-textarea {
+    width: 100%;
+    background: var(--bg-darker);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px 16px;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    font-family: inherit;
+    line-height: 1.6;
+    resize: vertical;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+}
+
+.broadcast-textarea:focus {
+    outline: none;
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 0 3px rgba(0,255,255, 0.1);
+}
+
+.broadcast-textarea--recipients {
+    font-size: 0.9rem;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+.broadcast-textarea::placeholder {
+    color: var(--text-muted);
+}
+
+.broadcast-char-count {
+    text-align: right;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.broadcast-recipients-count {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: var(--neon-green);
+}
+
+/* ── Range slider */
+.broadcast-range {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    border-radius: 4px;
+    background: var(--border-color);
+    outline: none;
+    cursor: pointer;
+}
+
+.broadcast-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--neon-cyan);
+    box-shadow: 0 0 8px var(--neon-cyan);
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+.broadcast-range::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.broadcast-range-val {
+    min-width: 36px;
+    text-align: center;
+    font-weight: 700;
+    color: var(--neon-cyan);
+    font-family: var(--font-heading);
+}
+
+/* ── Send button */
+.broadcast-send-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 24px;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    background: linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta));
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+}
+
+.broadcast-send-btn:hover:not(:disabled) {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(0,255,255, 0.35);
+}
+
+.broadcast-send-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* ── Alert */
+.broadcast-alert {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.92rem;
+    margin-bottom: 20px;
+    animation: fadeIn 0.3s ease;
+}
+
+.broadcast-alert--success {
+    background: rgba(0,255,128, 0.12);
+    border: 1px solid var(--neon-green);
+    color: var(--neon-green);
+}
+
+.broadcast-alert--error {
+    background: rgba(255,0,128, 0.12);
+    border: 1px solid var(--neon-pink);
+    color: var(--neon-pink);
+}
+
+/* ── History list */
+.broadcast-tasks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.broadcast-task-row {
+    background: var(--bg-darker);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+
+.broadcast-task-row:hover {
+    border-color: rgba(0,255,255, 0.4);
+}
+
+.broadcast-task-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.broadcast-task-text {
+    flex: 1;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+}
+
+/* ── Progress bar */
+.broadcast-progress-bg {
+    height: 3px;
+    background: var(--border-color);
+}
+
+.broadcast-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--neon-cyan), var(--neon-magenta));
+    transition: width 0.5s ease;
+}
+
+/* ── Detail list */
+.broadcast-detail {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.broadcast-result-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+}
+
+/* ── Ghost button */
+.btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px 16px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-ghost:hover {
+    border-color: var(--neon-pink);
+    color: var(--neon-pink);
+}
+
+/* ── Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 0.9s linear infinite;
+}

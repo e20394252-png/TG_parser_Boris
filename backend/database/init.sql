@@ -235,6 +235,29 @@ BEGIN
     END IF;
 END $$;
 
+-- Таблица задач рассылки
+CREATE TABLE IF NOT EXISTS broadcast_tasks (
+    id SERIAL PRIMARY KEY,
+    session_id INTEGER REFERENCES telegram_sessions(id) ON DELETE CASCADE,
+    message_text TEXT NOT NULL,
+    total_count INTEGER NOT NULL DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'pending', -- pending / running / done / failed
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица результатов рассылки (строка на каждого получателя)
+CREATE TABLE IF NOT EXISTS broadcast_results (
+    id SERIAL PRIMARY KEY,
+    task_id INTEGER REFERENCES broadcast_tasks(id) ON DELETE CASCADE,
+    recipient TEXT NOT NULL,
+    success BOOLEAN NOT NULL DEFAULT false,
+    error TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_broadcast_tasks_session ON broadcast_tasks(session_id);
+CREATE INDEX IF NOT EXISTS idx_broadcast_results_task ON broadcast_results(task_id);
+
 -- Вставка дефолтного пользователя (admin/admin - ИЗМЕНИТЬ В ПРОДАКШЕНЕ!)
 INSERT INTO users (username, password_hash) 
 VALUES ('admin', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYqVr/qvIuW') 
