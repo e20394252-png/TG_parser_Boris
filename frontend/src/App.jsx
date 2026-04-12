@@ -1,31 +1,57 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Activity, MessageSquare, Settings as SettingsIcon, Brain, BarChart3, Search, Bot, Send, BookOpen, LogOut } from 'lucide-react';
 import './App.css';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { settingsAPI } from './utils/api';
+
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
-import SettingsPanel from './components/SettingsPanel';
 import TelegramAuth from './pages/TelegramAuth';
 import MonitoringSettings from './pages/MonitoringSettings';
 import AISettings from './pages/AISettings';
 import MessageHistory from './pages/MessageHistory';
 import ConversationSearch from './pages/ConversationSearch';
-import MCPStatusIndicator from './components/MCPStatusIndicator';
-import MCPStatusModal from './components/MCPStatusModal';
 import Broadcast from './pages/Broadcast';
 import Guide from './pages/Guide';
+import SettingsPage, { NAV_ITEMS_CONFIG, DEFAULT_MENU_VISIBILITY } from './pages/SettingsPage';
+
+import MCPStatusIndicator from './components/MCPStatusIndicator';
+import MCPStatusModal from './components/MCPStatusModal';
+
+/* Все пункты меню c маппингом icon/path/component */
+const ALL_NAV = [
+    { key: 'dashboard',       path: '/',               icon: BarChart3,      label: 'Дашборд',         el: <Dashboard /> },
+    { key: 'auth',            path: '/auth',            icon: Bot,            label: 'Авторизация ТГ',  el: <TelegramAuth /> },
+    { key: 'monitoring',      path: '/monitoring',      icon: MessageSquare,  label: 'Мониторинг',      el: <MonitoringSettings /> },
+    { key: 'ai-settings',     path: '/ai-settings',     icon: Brain,          label: 'AI & RAG',        el: <AISettings /> },
+    { key: 'message-history', path: '/message-history', icon: MessageSquare,  label: 'История',         el: <MessageHistory /> },
+    { key: 'conversations',   path: '/conversations',   icon: Search,         label: 'Поиск',           el: <ConversationSearch /> },
+    { key: 'broadcast',       path: '/broadcast',       icon: Send,           label: 'Рассылка',        el: <Broadcast /> },
+    { key: 'guide',           path: '/guide',           icon: BookOpen,       label: 'Инструкция',      el: <Guide /> },
+];
 
 function AppContent() {
     const location = useLocation();
-    const [settingsOpen, setSettingsOpen] = useState(false);
-    const [mcpModalOpen, setMcpModalOpen] = useState(false);
     const { user, logout } = useAuth();
+    const [mcpModalOpen, setMcpModalOpen] = useState(false);
+    const [menuVisibility, setMenuVisibility] = useState(DEFAULT_MENU_VISIBILITY);
 
-    const isActive = (path) => {
-        return location.pathname === path;
-    };
+    // Загружаем настройки видимости меню
+    useEffect(() => {
+        settingsAPI.get()
+            .then(res => {
+                const mv = res.data?.settings?.menu_visibility;
+                if (mv && typeof mv === 'object') {
+                    setMenuVisibility({ ...DEFAULT_MENU_VISIBILITY, ...mv });
+                }
+            })
+            .catch(() => {});
+    }, []);
+
+    const visibleNav = ALL_NAV.filter(item => menuVisibility[item.key] !== false);
+    const isActive = (path) => location.pathname === path;
 
     return (
         <div className="app">
@@ -42,38 +68,12 @@ function AppContent() {
                 </div>
 
                 <nav className="nav-items">
-                    <Link to="/" className={`nav-item ${isActive('/') ? 'active' : ''}`}>
-                        <BarChart3 size={20} />
-                        <span>Дашборд</span>
-                    </Link>
-                    <Link to="/auth" className={`nav-item ${isActive('/auth') ? 'active' : ''}`}>
-                        <Bot size={20} />
-                        <span>Авторизация ТГ</span>
-                    </Link>
-                    <Link to="/monitoring" className={`nav-item ${isActive('/monitoring') ? 'active' : ''}`}>
-                        <MessageSquare size={20} />
-                        <span>Мониторинг</span>
-                    </Link>
-                    <Link to="/ai-settings" className={`nav-item ${isActive('/ai-settings') ? 'active' : ''}`}>
-                        <Brain size={20} />
-                        <span>AI & RAG</span>
-                    </Link>
-                    <Link to="/message-history" className={`nav-item ${isActive('/message-history') ? 'active' : ''}`}>
-                        <MessageSquare size={20} />
-                        <span>История</span>
-                    </Link>
-                    <Link to="/conversations" className={`nav-item ${isActive('/conversations') ? 'active' : ''}`}>
-                        <Search size={20} />
-                        <span>Поиск</span>
-                    </Link>
-                    <Link to="/broadcast" className={`nav-item ${isActive('/broadcast') ? 'active' : ''}`}>
-                        <Send size={20} />
-                        <span>Рассылка</span>
-                    </Link>
-                    <Link to="/guide" className={`nav-item ${isActive('/guide') ? 'active' : ''}`}>
-                        <BookOpen size={20} />
-                        <span>Инструкция</span>
-                    </Link>
+                    {visibleNav.map(item => (
+                        <Link key={item.key} to={item.path} className={`nav-item ${isActive(item.path) ? 'active' : ''}`}>
+                            <item.icon size={20} />
+                            <span>{item.label}</span>
+                        </Link>
+                    ))}
                 </nav>
 
                 {/* Профиль пользователя */}
@@ -109,33 +109,27 @@ function AppContent() {
                 <div className="sidebar-footer">
                     <MCPStatusIndicator onDetailsClick={() => setMcpModalOpen(true)} />
 
-                    <button
-                        className="settings-button"
-                        onClick={() => setSettingsOpen(true)}
-                        title="Настройки"
+                    <Link
+                        to="/settings"
+                        className={`settings-button ${isActive('/settings') ? 'active' : ''}`}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
                     >
                         <SettingsIcon size={20} />
                         <span>Настройки</span>
-                    </button>
+                    </Link>
                 </div>
             </aside>
 
             {/* Main Content */}
             <main className="main-content">
                 <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/auth" element={<TelegramAuth />} />
-                    <Route path="/monitoring" element={<MonitoringSettings />} />
-                    <Route path="/ai-settings" element={<AISettings />} />
-                    <Route path="/message-history" element={<MessageHistory />} />
-                    <Route path="/conversations" element={<ConversationSearch />} />
-                    <Route path="/broadcast" element={<Broadcast />} />
-                    <Route path="/guide" element={<Guide />} />
+                    {ALL_NAV.map(item => (
+                        <Route key={item.key} path={item.path} element={item.el} />
+                    ))}
+                    <Route path="/settings" element={<SettingsPage />} />
                 </Routes>
             </main>
 
-            {/* Modals */}
-            <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
             <MCPStatusModal isOpen={mcpModalOpen} onClose={() => setMcpModalOpen(false)} />
         </div>
     );

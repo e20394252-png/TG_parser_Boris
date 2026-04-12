@@ -12,7 +12,13 @@ function parseRecipients(raw) {
     return raw
         .split(/[\n,;]+/)
         .map(s => s.trim())
-        .filter(Boolean);
+        .filter(Boolean)
+        .map(s => {
+            // Если уже начинается с @ или + (телефон) — оставляем
+            if (s.startsWith('@') || s.startsWith('+')) return s;
+            // Иначе — это никнейм без @, добавляем
+            return '@' + s;
+        });
 }
 
 function StatusBadge({ status }) {

@@ -199,3 +199,26 @@ async def get_broadcast_history(user_id: int = Depends(require_user_id)):
         user_id
     )
     return {"tasks": [dict(t) for t in tasks]}
+
+
+@router.get("/today")
+async def get_today_broadcast_stats(user_id: int = Depends(require_user_id)):
+    """Статистика рассылок за сегодня для дашборда"""
+    result = await db.fetchrow(
+        """SELECT
+               COUNT(DISTINCT bt.id)                            AS tasks_today,
+               COALESCE(SUM(bt.total_count), 0)                AS messages_planned,
+               COUNT(br.id) FILTER (WHERE br.success)          AS messages_sent
+           FROM broadcast_tasks bt
+           JOIN telegram_sessions ts ON bt.session_id = ts.id
+           LEFT JOIN broadcast_results br ON br.task_id = bt.id
+           WHERE ts.user_id = $1
+             AND bt.created_at >= CURRENT_DATE""",
+        user_id
+    )
+    return {
+        "tasks_today":       int(result["tasks_today"]       or 0),
+        "messages_sent":     int(result["messages_sent"]     or 0),
+        "messages_planned":  int(result["messages_planned"]  or 0),
+    }
+

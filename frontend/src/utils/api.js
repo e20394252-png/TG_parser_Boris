@@ -116,6 +116,7 @@ export const broadcastAPI = {
     send:       (data)   => api.post('/broadcast/send', data),
     getHistory: ()       => api.get('/broadcast/history'),
     getStatus:  (taskId) => api.get(`/broadcast/status/${taskId}`),
+    getToday:   ()       => api.get('/broadcast/today'),
 };
 
 export default api;

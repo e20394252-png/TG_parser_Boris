@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Activity, MessageCircle, Send, AlertCircle } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { statisticsAPI } from '../utils/api';
+import { statisticsAPI, broadcastAPI } from '../utils/api';
 
 export default function Dashboard() {
     const [stats, setStats] = useState(null);
     const [messageData, setMessageData] = useState([]);
     const [responseData, setResponseData] = useState([]);
+    const [broadcastToday, setBroadcastToday] = useState({ tasks_today: 0, messages_sent: 0 });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -16,15 +17,17 @@ export default function Dashboard() {
 
     const loadData = async () => {
         try {
-            const [overview, messages, responses] = await Promise.all([
+            const [overview, messages, responses, bcToday] = await Promise.all([
                 statisticsAPI.getOverview(),
                 statisticsAPI.getMessages(null, 7),
                 statisticsAPI.getResponses(null, 7),
+                broadcastAPI.getToday().catch(() => ({ data: { tasks_today: 0, messages_sent: 0 } })),
             ]);
 
             setStats(overview.data);
             setMessageData(messages.data.data);
             setResponseData(responses.data.data);
+            setBroadcastToday(bcToday.data);
         } catch (error) {
             console.error('Ошибка загрузки данных:', error);
         } finally {
@@ -104,6 +107,20 @@ export default function Dashboard() {
                     </div>
                     <div className="stat-value">{stats?.active_chats || 0}</div>
                     <div className="stat-change">Фильтров: {stats?.active_filters || 0}</div>
+                </motion.div>
+
+                <motion.div
+                    className="stat-card"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                >
+                    <div className="stat-label">
+                        <Send size={16} style={{ display: 'inline', marginRight: '8px' }} />
+                        Рассылок сегодня
+                    </div>
+                    <div className="stat-value">{broadcastToday.messages_sent}</div>
+                    <div className="stat-change">Задач: {broadcastToday.tasks_today}</div>
                 </motion.div>
             </div>
 
