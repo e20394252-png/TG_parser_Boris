@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Filter, MessageCircle, User, Calendar, TrendingUp } from 'lucide-react';
 import { conversationsAPI } from '../utils/api';
@@ -11,8 +11,7 @@ export default function ConversationSearch() {
     const [contextMessages, setContextMessages] = useState([]);
     const [stats, setStats] = useState(null);
 
-    // Загрузка статистики при монтировании
-    useState(() => {
+    useEffect(() => {
         loadStats();
     }, []);
 

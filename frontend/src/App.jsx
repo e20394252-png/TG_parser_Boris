@@ -48,7 +48,7 @@ function AppContent() {
                     </Link>
                     <Link to="/auth" className={`nav-item ${isActive('/auth') ? 'active' : ''}`}>
                         <Bot size={20} />
-                        <span>Telegram</span>
+                        <span>Авторизация ТГ</span>
                     </Link>
                     <Link to="/monitoring" className={`nav-item ${isActive('/monitoring') ? 'active' : ''}`}>
                         <MessageSquare size={20} />
@@ -89,9 +89,11 @@ function AppContent() {
                     )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {user?.first_name} {user?.last_name || ''}
+                            {user?.first_name
+                                ? `${user.first_name} ${user.last_name || ''}`
+                                : (user?.username || 'Пользователь')}
                         </div>
-                        {user?.username && (
+                        {user?.username && user?.first_name && (
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>@{user.username}</div>
                         )}
                     </div>
