@@ -985,3 +985,304 @@ tr:hover {
 .spin {
     animation: spin 0.9s linear infinite;
 }
+
+/* ═══════════════════════════════════════════
+   Guide / Instructions Page
+═══════════════════════════════════════════ */
+.guide-page {
+    max-width: 900px;
+}
+
+/* ── Quick nav badges */
+.guide-nav-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 32px;
+}
+
+.guide-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--badge-color, var(--border-color));
+    color: var(--badge-color, var(--text-secondary));
+    background: transparent;
+    transition: all 0.2s;
+}
+
+.guide-badge:hover {
+    background: color-mix(in srgb, var(--badge-color, var(--neon-cyan)) 15%, transparent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--badge-color, var(--neon-cyan)) 30%, transparent);
+}
+
+/* ── Accordion */
+.guide-accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.guide-accordion-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.guide-accordion-item.open {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.08);
+}
+
+.guide-accordion-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 18px 24px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    transition: background 0.2s;
+}
+
+.guide-accordion-header:hover {
+    background: rgba(0, 255, 255, 0.04);
+}
+
+.guide-accordion-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+.guide-accordion-title {
+    flex: 1;
+}
+
+.guide-accordion-body {
+    padding: 0 24px 24px;
+    border-top: 1px solid var(--border-color);
+    animation: fadeIn 0.25s ease;
+}
+
+/* ── Guide content */
+.guide-content {
+    padding-top: 20px;
+}
+
+.guide-content p {
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin-bottom: 16px;
+}
+
+.guide-content h4 {
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--neon-cyan);
+    margin: 20px 0 10px;
+}
+
+/* ── Ordered steps */
+.guide-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.guide-steps li {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.guide-steps li > div {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-size: 0.95rem;
+}
+
+.guide-steps li > div strong {
+    display: block;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.guide-steps li > div p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.guide-steps--small {
+    gap: 12px;
+}
+
+.guide-step-num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta));
+    color: #000;
+    font-weight: 700;
+    font-size: 0.85rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.guide-step-num--sm {
+    width: 22px;
+    height: 22px;
+    font-size: 0.75rem;
+    margin-top: 2px;
+}
+
+/* ── Unordered list */
+.guide-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.guide-list li {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    padding-left: 18px;
+    position: relative;
+}
+
+.guide-list li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--neon-cyan);
+    font-size: 0.85rem;
+}
+
+/* ── Cards grid */
+.guide-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.guide-card {
+    background: var(--bg-darker);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px 16px;
+    transition: border-color 0.2s;
+}
+
+.guide-card:hover {
+    border-color: rgba(0, 255, 255, 0.4);
+}
+
+.guide-card-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.guide-card p {
+    font-size: 0.85rem;
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+/* ── Warn / info blocks */
+.guide-warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    background: rgba(255, 165, 0, 0.08);
+    border: 1px solid rgba(255, 165, 0, 0.4);
+    border-radius: 6px;
+    font-size: 0.88rem;
+    color: rgba(255, 165, 0, 0.9);
+    margin-top: 12px;
+    line-height: 1.5;
+}
+
+.guide-warn--green {
+    background: rgba(0, 255, 128, 0.08);
+    border-color: rgba(0, 255, 128, 0.4);
+    color: var(--neon-green);
+}
+
+/* ── Code block */
+.guide-code-block {
+    background: var(--bg-darker);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 0.9rem;
+    color: var(--neon-cyan);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* ═══════════════════════════════════════════
+   Auth page guide steps
+═══════════════════════════════════════════ */
+.auth-guide-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.auth-guide-steps li {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    line-height: 1.6;
+}
+
+.auth-guide-num {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, var(--neon-cyan), var(--neon-magenta));
+    color: #000;
+    font-weight: 700;
+    font-size: 0.78rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+}

@@ -217,56 +217,133 @@ export default function TelegramAuth() {
                     )}
                 </motion.div>
 
-                {/* Активные сессии */}
-                <motion.div
-                    className="card"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                >
-                    <h3 style={{ marginBottom: '24px' }}>Активные сессии</h3>
+                {/* Правая колонка: сессии + инструкция */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-                    {sessions.length === 0 ? (
-                        <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px 0' }}>
-                            Нет активных сессий
-                        </p>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            {sessions.map((session) => (
-                                <div
-                                    key={session.id}
-                                    style={{
-                                        padding: '16px',
-                                        background: 'var(--bg-darker)',
-                                        border: `1px solid ${session.is_active ? 'var(--neon-green)' : 'var(--border-color)'}`,
-                                        borderRadius: '4px',
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div>
-                                            <div style={{ fontWeight: '600', marginBottom: '4px' }}>
-                                                {session.phone_number}
+                    {/* Активные сессии */}
+                    <motion.div
+                        className="card"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                    >
+                        <h3 style={{ marginBottom: '24px' }}>Активные сессии</h3>
+
+                        {sessions.length === 0 ? (
+                            <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0' }}>
+                                Нет активных сессий
+                            </p>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                {sessions.map((session) => (
+                                    <div
+                                        key={session.id}
+                                        style={{
+                                            padding: '16px',
+                                            background: 'var(--bg-darker)',
+                                            border: `1px solid ${session.is_active ? 'var(--neon-green)' : 'var(--border-color)'}`,
+                                            borderRadius: '4px',
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div>
+                                                <div style={{ fontWeight: '600', marginBottom: '4px' }}>
+                                                    {session.phone_number}
+                                                </div>
+                                                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                                    {session.is_active ? (
+                                                        <span className="badge badge-success">Активна</span>
+                                                    ) : (
+                                                        <span className="badge badge-danger">Неактивна</span>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                                {session.is_active ? (
-                                                    <span className="badge badge-success">Активна</span>
-                                                ) : (
-                                                    <span className="badge badge-danger">Неактивна</span>
-                                                )}
-                                            </div>
+                                            <button
+                                                className="btn btn-danger"
+                                                onClick={() => handleLogout(session.id)}
+                                                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                                            >
+                                                Выйти
+                                            </button>
                                         </div>
-                                        <button
-                                            className="btn btn-danger"
-                                            onClick={() => handleLogout(session.id)}
-                                            style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-                                        >
-                                            Выйти
-                                        </button>
                                     </div>
+                                ))}
+                            </div>
+                        )}
+                    </motion.div>
+
+                    {/* Инструкция как получить API ID и API Hash */}
+                    <motion.div
+                        className="card"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.1 }}
+                    >
+                        <h3 style={{ marginBottom: '8px', color: 'var(--neon-cyan)' }}>
+                            🔑 Как получить API ID и API Hash
+                        </h3>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '20px' }}>
+                            Эти данные нужны для подключения аккаунта. Получить их можно бесплатно на официальном сайте Telegram.
+                        </p>
+
+                        <ol className="auth-guide-steps">
+                            <li>
+                                <span className="auth-guide-num">1</span>
+                                <div>
+                                    Откройте{' '}
+                                    <a
+                                        href="https://my.telegram.org"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ color: 'var(--neon-cyan)', textDecoration: 'none', fontWeight: 600 }}
+                                    >
+                                        my.telegram.org ↗
+                                    </a>{' '}
+                                    в браузере
                                 </div>
-                            ))}
+                            </li>
+                            <li>
+                                <span className="auth-guide-num">2</span>
+                                <div>Введите свой <b>номер телефона</b> и код подтверждения из Telegram</div>
+                            </li>
+                            <li>
+                                <span className="auth-guide-num">3</span>
+                                <div>Нажмите <b>«API development tools»</b></div>
+                            </li>
+                            <li>
+                                <span className="auth-guide-num">4</span>
+                                <div>
+                                    Заполните форму: придумайте любое <b>название</b> и <b>короткое имя</b> приложения
+                                    (например <code style={{ background: 'var(--bg-darker)', padding: '1px 6px', borderRadius: 4 }}>myparser</code>),
+                                    нажмите <b>«Create application»</b>
+                                </div>
+                            </li>
+                            <li>
+                                <span className="auth-guide-num">5</span>
+                                <div>
+                                    Скопируйте <b>App api_id</b> (число) и <b>App api_hash</b> (строка из 32 символов)
+                                    и вставьте их в форму слева
+                                </div>
+                            </li>
+                        </ol>
+
+                        <div style={{
+                            marginTop: '16px',
+                            padding: '12px 14px',
+                            background: 'rgba(255, 165, 0, 0.08)',
+                            border: '1px solid rgba(255, 165, 0, 0.4)',
+                            borderRadius: '6px',
+                            fontSize: '0.85rem',
+                            color: 'rgba(255, 165, 0, 0.9)',
+                            display: 'flex',
+                            gap: '8px',
+                            alignItems: 'flex-start',
+                        }}>
+                            <span style={{ flexShrink: 0 }}>⚠️</span>
+                            <span>Никому не передавайте API Hash и session string — это равносильно полному доступу к аккаунту.</span>
                         </div>
-                    )}
-                </motion.div>
+                    </motion.div>
+
+                </div>
             </div>
         </div>
     );

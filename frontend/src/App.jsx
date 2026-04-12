@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Activity, MessageSquare, Settings as SettingsIcon, Brain, BarChart3, Search, Bot, Send } from 'lucide-react';
+import { Activity, MessageSquare, Settings as SettingsIcon, Brain, BarChart3, Search, Bot, Send, BookOpen } from 'lucide-react';
 import './App.css';
 
 import Dashboard from './pages/Dashboard';
@@ -13,6 +13,7 @@ import ConversationSearch from './pages/ConversationSearch';
 import MCPStatusIndicator from './components/MCPStatusIndicator';
 import MCPStatusModal from './components/MCPStatusModal';
 import Broadcast from './pages/Broadcast';
+import Guide from './pages/Guide';
 
 function AppContent() {
     const location = useLocation();
@@ -66,6 +67,10 @@ function AppContent() {
                         <Send size={20} />
                         <span>Рассылка</span>
                     </Link>
+                    <Link to="/guide" className={`nav-item ${isActive('/guide') ? 'active' : ''}`}>
+                        <BookOpen size={20} />
+                        <span>Инструкция</span>
+                    </Link>
                 </nav>
 
                 <div className="sidebar-footer">
@@ -92,6 +97,7 @@ function AppContent() {
                     <Route path="/message-history" element={<MessageHistory />} />
                     <Route path="/conversations" element={<ConversationSearch />} />
                     <Route path="/broadcast" element={<Broadcast />} />
+                    <Route path="/guide" element={<Guide />} />
                 </Routes>
             </main>
 
