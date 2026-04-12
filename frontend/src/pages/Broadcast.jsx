@@ -52,7 +52,7 @@ function TaskRow({ task }) {
     async function loadDetail() {
         if (detail) { setOpen(o => !o); return; }
         try {
-            const r = await fetch(`${API_BASE}/api/broadcast/status/${task.id}`);
+            const r = await fetch(`${API_BASE}/broadcast/status/${task.id}`);
             const d = await r.json();
             setDetail(d);
             setOpen(true);
@@ -142,7 +142,7 @@ export default function Broadcast() {
     // ── Load history
     async function loadHistory() {
         try {
-            const r = await fetch(`${API_BASE}/api/broadcast/history`);
+            const r = await fetch(`${API_BASE}/broadcast/history`);
             const d = await r.json();
             setTasks(d.tasks || []);
         } catch {
@@ -166,7 +166,7 @@ export default function Broadcast() {
         setResult(null);
 
         try {
-            const res = await fetch(`${API_BASE}/api/broadcast/send`, {
+            const res = await fetch(`${API_BASE}/broadcast/send`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
