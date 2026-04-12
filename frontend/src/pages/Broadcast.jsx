@@ -151,6 +151,7 @@ export default function Broadcast() {
     const [tasks, setTasks]       = useState([]);
     const [loadingTasks, setLT]   = useState(true);
     const pollRef                 = useRef(null);
+    const textareaRef             = useRef(null);
 
     const parsedList = parseRecipients(recipients);
 
@@ -265,15 +266,60 @@ export default function Broadcast() {
                             Текст сообщения
                             <span style={{ color: 'var(--neon-pink)', marginLeft: 4 }}>*</span>
                         </label>
+
+                        {/* ── Format toolbar */}
+                        <div style={{ display: 'flex', gap: 5, marginBottom: 8, flexWrap: 'wrap' }}>
+                            {[
+                                { label: 'B',    title: 'Жирный (Ctrl+B)',          before: '*',  after: '*',  style: { fontWeight: 800 } },
+                                { label: 'I',    title: 'Курсив (Ctrl+I)',           before: '_',  after: '_',  style: { fontStyle: 'italic' } },
+                                { label: 'U',    title: 'Подчёркнутый',             before: '__', after: '__', style: { textDecoration: 'underline' } },
+                                { label: 'S',    title: 'Зачёркнутый',             before: '~',  after: '~',  style: { textDecoration: 'line-through' } },
+                                { label: '<>',   title: 'Моноширинный (код)',       before: '`',  after: '`',  style: { fontFamily: 'monospace' } },
+                                { label: '```',  title: 'Блок кода',                before: '```\n', after: '\n```', style: { fontFamily: 'monospace', fontSize: '0.78rem' } },
+                                { label: '||',   title: 'Спойлер',                 before: '||', after: '||', style: {} },
+                            ].map(btn => (
+                                <button
+                                    key={btn.label}
+                                    type="button"
+                                    title={btn.title}
+                                    onClick={() => {
+                                        const el = textareaRef.current;
+                                        if (!el) return;
+                                        const start = el.selectionStart;
+                                        const end   = el.selectionEnd;
+                                        const sel   = text.substring(start, end);
+                                        const newVal = text.substring(0, start) + btn.before + sel + btn.after + text.substring(end);
+                                        setText(newVal);
+                                        requestAnimationFrame(() => {
+                                            el.focus();
+                                            el.setSelectionRange(start + btn.before.length, end + btn.before.length);
+                                        });
+                                    }}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.07)',
+                                        border: '1px solid rgba(255,255,255,0.15)',
+                                        borderRadius: 7, color: 'var(--text-primary)',
+                                        cursor: 'pointer', padding: '4px 10px',
+                                        fontSize: '0.82rem', lineHeight: 1.4,
+                                        ...btn.style,
+                                    }}
+                                >{btn.label}</button>
+                            ))}
+                        </div>
+
                         <textarea
+                            ref={textareaRef}
                             className="broadcast-textarea"
                             rows={7}
                             placeholder="Введите текст, который будет отправлен каждому получателю..."
                             value={text}
                             onChange={e => setText(e.target.value)}
                         />
-                        <div className="broadcast-char-count">
-                            {text.length} символов
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                Поддерживается Telegram Markdown (*жирный*, _курсив_, ~зачёрк.~, ||спойлер||)
+                            </span>
+                            <span className="broadcast-char-count">{text.length} символов</span>
                         </div>
                     </div>
 
@@ -317,8 +363,34 @@ export default function Broadcast() {
                             />
                             <span className="broadcast-range-val">{delay}с</span>
                         </div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                            ⚡ Рекомендуем 10–30 сек. для защиты аккаунта от бана.
+
+                        {/* Recommendation table */}
+                        <div style={{
+                            marginTop: 12, padding: '12px 14px',
+                            background: 'rgba(0,212,255,0.05)',
+                            border: '1px solid rgba(0,212,255,0.18)',
+                            borderRadius: 10, fontSize: '0.82rem',
+                        }}>
+                            <div style={{ fontWeight: 600, color: 'var(--neon-cyan)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                💡 Рекомендации по задержке
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <tbody>
+                                    {[
+                                        ['Знакомые / друзья',      '5–10 сек', 'var(--neon-green)'],
+                                        ['Чужие аккаунты',         '10–30 сек', '#f0c040'],
+                                        ['Большой список (100+)',  '30–60 сек', 'var(--neon-pink)'],
+                                    ].map(([label, range, color]) => (
+                                        <tr key={label}>
+                                            <td style={{ padding: '3px 0', color: 'var(--text-muted)' }}>{label}</td>
+                                            <td style={{ textAlign: 'right', fontWeight: 600, color }}>{range}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            <div style={{ marginTop: 8, color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                                ⚠️ Слишком частые отправки могут привести к временной блокировке аккаунта Telegram.
+                            </div>
                         </div>
                     </div>
 
