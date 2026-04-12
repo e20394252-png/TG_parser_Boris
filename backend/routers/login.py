@@ -128,7 +128,7 @@ async def login_via_password(data: PasswordLoginRequest):
     Вход по username + password.
     Пользователи создаются автоматически при старте (SeedUsers).
     """
-    from passlib.hash import bcrypt as bcrypt_hash
+    import bcrypt as _bcrypt
     from database.database import db
 
     user = await db.fetchrow(
@@ -141,7 +141,9 @@ async def login_via_password(data: PasswordLoginRequest):
             detail="Неверный логин или пароль"
         )
 
-    if not bcrypt_hash.verify(data.password, user["password_hash"]):
+    pw_bytes   = data.password.encode("utf-8")
+    hash_bytes = user["password_hash"].encode("utf-8")
+    if not _bcrypt.checkpw(pw_bytes, hash_bytes):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Неверный логин или пароль"

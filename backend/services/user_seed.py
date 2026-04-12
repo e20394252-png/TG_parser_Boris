@@ -18,7 +18,7 @@ async def seed_users():
 
     Если SEED_USERS не задан — используем дефолтный список.
     """
-    from passlib.hash import bcrypt as bcrypt_hash
+    import bcrypt as _bcrypt
 
     raw = os.getenv("SEED_USERS", "admin:admin:admin,user1:user1:user,user2:user2:user")
 
@@ -43,7 +43,7 @@ async def seed_users():
                 logger.info(f"[seed] User '{username}' already exists — skip")
                 continue
 
-            hashed = bcrypt_hash.hash(password)
+            hashed = _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
             await db.execute(
                 "INSERT INTO users (username, password_hash) VALUES ($1, $2)",
                 username, hashed
