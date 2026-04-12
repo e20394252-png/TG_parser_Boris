@@ -1,12 +1,13 @@
 """
 Роутер для управления мониторингом чатов и фильтрами
 """
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
 from database.database import db
+from services.auth_deps import require_user_id, verify_session_owner
 
 router = APIRouter()
 
@@ -25,10 +26,14 @@ class MessageFilterCreate(BaseModel):
     chat_ids: List[int] = []
 
 @router.get("/chats")
-async def get_monitored_chats(session_id: Optional[int] = None):
-    """Получение списка отслеживаемых чатов"""
+async def get_monitored_chats(
+    session_id: Optional[int] = None,
+    user_id: int = Depends(require_user_id)
+):
+    """Получение списка отслеживаемых чатов — только своих"""
     try:
         if session_id:
+            await verify_session_owner(session_id, user_id)
             chats = await db.fetch(
                 """SELECT id, session_id, chat_id, chat_title, chat_username, 
                           is_active, created_at
@@ -38,15 +43,21 @@ async def get_monitored_chats(session_id: Optional[int] = None):
                 session_id
             )
         else:
+            # Возвращаем чаты всех сессий пользователя
             chats = await db.fetch(
-                """SELECT id, session_id, chat_id, chat_title, chat_username, 
-                          is_active, created_at
-                   FROM monitored_chats 
-                   ORDER BY created_at DESC"""
+                """SELECT mc.id, mc.session_id, mc.chat_id, mc.chat_title,
+                          mc.chat_username, mc.is_active, mc.created_at
+                   FROM monitored_chats mc
+                   JOIN telegram_sessions ts ON mc.session_id = ts.id
+                   WHERE ts.user_id = $1
+                   ORDER BY mc.created_at DESC""",
+                user_id
             )
         
         return {"chats": chats, "total": len(chats)}
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -54,9 +65,13 @@ async def get_monitored_chats(session_id: Optional[int] = None):
         )
 
 @router.post("/chats")
-async def add_monitored_chat(chat: MonitoredChatCreate):
+async def add_monitored_chat(
+    chat: MonitoredChatCreate,
+    user_id: int = Depends(require_user_id)
+):
     """Добавление чата в мониторинг"""
     try:
+        await verify_session_owner(chat.session_id, user_id)
         # Проверяем, не добавлен ли уже этот чат
         existing = await db.fetchrow(
             "SELECT id FROM monitored_chats WHERE session_id = $1 AND chat_id = $2",
@@ -92,12 +107,24 @@ async def add_monitored_chat(chat: MonitoredChatCreate):
         )
 
 @router.delete("/chats/{chat_id}")
-async def remove_monitored_chat(chat_id: int):
+async def remove_monitored_chat(
+    chat_id: int,
+    user_id: int = Depends(require_user_id)
+):
     """Удаление чата из мониторинга"""
     try:
+        # Проверяем владельца через JOIN
+        row = await db.fetchrow(
+            """SELECT ts.user_id FROM monitored_chats mc
+               JOIN telegram_sessions ts ON mc.session_id = ts.id
+               WHERE mc.id = $1""", chat_id
+        )
+        if not row or row["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
         await db.execute("DELETE FROM monitored_chats WHERE id = $1", chat_id)
         return {"success": True, "message": "Чат удален из мониторинга"}
-    
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -105,19 +132,22 @@ async def remove_monitored_chat(chat_id: int):
         )
 
 @router.patch("/chats/{chat_id}/toggle")
-async def toggle_chat_monitoring(chat_id: int):
+async def toggle_chat_monitoring(
+    chat_id: int,
+    user_id: int = Depends(require_user_id)
+):
     """Включение/выключение мониторинга чата"""
     try:
-        current = await db.fetchval(
-            "SELECT is_active FROM monitored_chats WHERE id = $1",
-            chat_id
+        row = await db.fetchrow(
+            """SELECT mc.is_active, ts.user_id FROM monitored_chats mc
+               JOIN telegram_sessions ts ON mc.session_id = ts.id
+               WHERE mc.id = $1""", chat_id
         )
-        
-        if current is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Чат не найден"
-            )
+        if not row:
+            raise HTTPException(status_code=404, detail="Чат не найден")
+        if row["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
+        current = row["is_active"]
         
         await db.execute(
             "UPDATE monitored_chats SET is_active = $1 WHERE id = $2",
@@ -139,10 +169,14 @@ async def toggle_chat_monitoring(chat_id: int):
         )
 
 @router.get("/filters")
-async def get_message_filters(session_id: Optional[int] = None):
-    """Получение списка фильтров сообщений"""
+async def get_message_filters(
+    session_id: Optional[int] = None,
+    user_id: int = Depends(require_user_id)
+):
+    """Получение списка фильтров — только свои"""
     try:
         if session_id:
+            await verify_session_owner(session_id, user_id)
             filters = await db.fetch(
                 """SELECT f.id, f.session_id, f.name, f.filter_type, f.pattern,
                           f.case_sensitive, f.is_active, f.created_at,
@@ -171,14 +205,19 @@ async def get_message_filters(session_id: Optional[int] = None):
                               '[]'
                           ) as chats
                    FROM message_filters f
+                   JOIN telegram_sessions ts ON f.session_id = ts.id
                    LEFT JOIN filter_chat_mapping fcm ON f.id = fcm.filter_id
                    LEFT JOIN monitored_chats mc ON fcm.chat_id = mc.id
+                   WHERE ts.user_id = $1
                    GROUP BY f.id
-                   ORDER BY f.created_at DESC"""
+                   ORDER BY f.created_at DESC""",
+                user_id
             )
         
         return {"filters": filters, "total": len(filters)}
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -186,9 +225,13 @@ async def get_message_filters(session_id: Optional[int] = None):
         )
 
 @router.post("/filters")
-async def create_message_filter(filter_data: MessageFilterCreate):
+async def create_message_filter(
+    filter_data: MessageFilterCreate,
+    user_id: int = Depends(require_user_id)
+):
     """Создание нового фильтра сообщений"""
     try:
+        await verify_session_owner(filter_data.session_id, user_id)
         async with db.transaction() as conn:
             # Создаем фильтр
             filter_id = await conn.fetchval(
@@ -223,12 +266,23 @@ async def create_message_filter(filter_data: MessageFilterCreate):
         )
 
 @router.delete("/filters/{filter_id}")
-async def delete_message_filter(filter_id: int):
+async def delete_message_filter(
+    filter_id: int,
+    user_id: int = Depends(require_user_id)
+):
     """Удаление фильтра"""
     try:
+        row = await db.fetchrow(
+            """SELECT ts.user_id FROM message_filters f
+               JOIN telegram_sessions ts ON f.session_id = ts.id
+               WHERE f.id = $1""", filter_id
+        )
+        if not row or row["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
         await db.execute("DELETE FROM message_filters WHERE id = $1", filter_id)
         return {"success": True, "message": "Фильтр удален"}
-    
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -236,31 +290,31 @@ async def delete_message_filter(filter_id: int):
         )
 
 @router.patch("/filters/{filter_id}/toggle")
-async def toggle_filter(filter_id: int):
+async def toggle_filter(
+    filter_id: int,
+    user_id: int = Depends(require_user_id)
+):
     """Включение/выключение фильтра"""
     try:
-        current = await db.fetchval(
-            "SELECT is_active FROM message_filters WHERE id = $1",
-            filter_id
+        row = await db.fetchrow(
+            """SELECT f.is_active, ts.user_id FROM message_filters f
+               JOIN telegram_sessions ts ON f.session_id = ts.id
+               WHERE f.id = $1""", filter_id
         )
-        
-        if current is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Фильтр не найден"
-            )
-        
+        if not row:
+            raise HTTPException(status_code=404, detail="Фильтр не найден")
+        if row["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
+        current = row["is_active"]
         await db.execute(
             "UPDATE message_filters SET is_active = $1 WHERE id = $2",
             not current, filter_id
         )
-        
         return {
             "success": True,
             "is_active": not current,
             "message": f"Фильтр {'включен' if not current else 'выключен'}"
         }
-    
     except HTTPException:
         raise
     except Exception as e:

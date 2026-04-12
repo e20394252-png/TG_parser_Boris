@@ -1,12 +1,13 @@
 """
 Роутер для управления автоответами
 """
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
 from database.database import db
+from services.auth_deps import require_user_id, verify_session_owner
 
 router = APIRouter()
 
@@ -21,10 +22,14 @@ class AutoResponseCreate(BaseModel):
     filter_ids: List[int] = []
 
 @router.get("/templates")
-async def get_response_templates(session_id: Optional[int] = None):
-    """Получение списка шаблонов ответов"""
+async def get_response_templates(
+    session_id: Optional[int] = None,
+    user_id: int = Depends(require_user_id)
+):
+    """Получение шаблонов ответов — только свои"""
     try:
         if session_id:
+            await verify_session_owner(session_id, user_id)
             templates = await db.fetch(
                 """SELECT r.id, r.session_id, r.name, r.response_type, r.template_text,
                           r.use_ai, r.ai_provider_id, r.use_rag, r.is_active, r.created_at,
@@ -53,14 +58,17 @@ async def get_response_templates(session_id: Optional[int] = None):
                               '[]'
                           ) as filters
                    FROM auto_responses r
+                   JOIN telegram_sessions ts ON r.session_id = ts.id
                    LEFT JOIN filter_response_mapping frm ON r.id = frm.response_id
                    LEFT JOIN message_filters f ON frm.filter_id = f.id
+                   WHERE ts.user_id = $1
                    GROUP BY r.id
-                   ORDER BY r.created_at DESC"""
+                   ORDER BY r.created_at DESC""",
+                user_id
             )
-        
         return {"templates": templates, "total": len(templates)}
-    
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -68,9 +76,13 @@ async def get_response_templates(session_id: Optional[int] = None):
         )
 
 @router.post("/templates")
-async def create_response_template(response: AutoResponseCreate):
+async def create_response_template(
+    response: AutoResponseCreate,
+    user_id: int = Depends(require_user_id)
+):
     """Создание нового шаблона ответа"""
     try:
+        await verify_session_owner(response.session_id, user_id)
         async with db.transaction() as conn:
             # Создаем шаблон
             response_id = await conn.fetchval(
@@ -107,12 +119,23 @@ async def create_response_template(response: AutoResponseCreate):
         )
 
 @router.delete("/templates/{response_id}")
-async def delete_response_template(response_id: int):
+async def delete_response_template(
+    response_id: int,
+    user_id: int = Depends(require_user_id)
+):
     """Удаление шаблона ответа"""
     try:
+        row = await db.fetchrow(
+            """SELECT ts.user_id FROM auto_responses r
+               JOIN telegram_sessions ts ON r.session_id = ts.id
+               WHERE r.id = $1""", response_id
+        )
+        if not row or row["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
         await db.execute("DELETE FROM auto_responses WHERE id = $1", response_id)
         return {"success": True, "message": "Шаблон удален"}
-    
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -123,11 +146,13 @@ async def delete_response_template(response_id: int):
 async def get_response_history(
     session_id: Optional[int] = None,
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
+    user_id: int = Depends(require_user_id)
 ):
-    """Получение истории отправленных ответов"""
+    """Получение истории отправленных ответов — только свои"""
     try:
         if session_id:
+            await verify_session_owner(session_id, user_id)
             history = await db.fetch(
                 """SELECT sr.id, sr.recipient_id, sr.response_text, sr.sent_at,
                           sr.success, sr.error_message,
@@ -142,7 +167,6 @@ async def get_response_history(
                    LIMIT $2 OFFSET $3""",
                 session_id, limit, offset
             )
-            
             total = await db.fetchval(
                 """SELECT COUNT(*) FROM sent_responses sr
                    LEFT JOIN message_history mh ON sr.message_history_id = mh.id
@@ -157,22 +181,24 @@ async def get_response_history(
                           mh.sender_username,
                           ar.name as response_template_name
                    FROM sent_responses sr
-                   LEFT JOIN message_history mh ON sr.message_history_id = mh.id
+                   JOIN message_history mh ON sr.message_history_id = mh.id
+                   JOIN telegram_sessions ts ON mh.session_id = ts.id
                    LEFT JOIN auto_responses ar ON sr.response_id = ar.id
+                   WHERE ts.user_id = $1
                    ORDER BY sr.sent_at DESC
-                   LIMIT $1 OFFSET $2""",
-                limit, offset
+                   LIMIT $2 OFFSET $3""",
+                user_id, limit, offset
             )
-            
-            total = await db.fetchval("SELECT COUNT(*) FROM sent_responses")
-        
-        return {
-            "history": history,
-            "total": total,
-            "limit": limit,
-            "offset": offset
-        }
-    
+            total = await db.fetchval(
+                """SELECT COUNT(*) FROM sent_responses sr
+                   JOIN message_history mh ON sr.message_history_id = mh.id
+                   JOIN telegram_sessions ts ON mh.session_id = ts.id
+                   WHERE ts.user_id = $1""",
+                user_id
+            )
+        return {"history": history, "total": total, "limit": limit, "offset": offset}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

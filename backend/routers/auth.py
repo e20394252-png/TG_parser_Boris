@@ -1,13 +1,14 @@
 """
 Роутер для аутентификации Telegram
 """
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
 from typing import Optional
 import asyncio
 
 from database.database import db
 from services.telegram_client import TelegramClientManager
+from services.auth_deps import require_user_id
 
 router = APIRouter()
 telegram_manager = TelegramClientManager()
@@ -28,7 +29,10 @@ class AuthResponse(BaseModel):
     session_id: Optional[int] = None
 
 @router.post("/telegram/start", response_model=AuthResponse)
-async def start_telegram_auth(data: TelegramAuthStart):
+async def start_telegram_auth(
+    data: TelegramAuthStart,
+    user_id: int = Depends(require_user_id)
+):
     """
     Начало авторизации в Telegram
     Отправляет код подтверждения на телефон
@@ -48,11 +52,11 @@ async def start_telegram_auth(data: TelegramAuthStart):
                 data.api_id, data.api_hash, session_id
             )
         else:
-            # Создаем новую сессию (предполагаем user_id = 1 для демо)
+            # Создаем новую сессию для текущего пользователя
             session_id = await db.fetchval(
                 """INSERT INTO telegram_sessions (user_id, phone_number, api_id, api_hash) 
-                   VALUES (1, $1, $2, $3) RETURNING id""",
-                data.phone_number, data.api_id, data.api_hash
+                   VALUES ($1, $2, $3, $4) RETURNING id""",
+                user_id, data.phone_number, data.api_id, data.api_hash
             )
         
         # Инициализируем Telegram клиент и отправляем код
@@ -76,7 +80,10 @@ async def start_telegram_auth(data: TelegramAuthStart):
         )
 
 @router.post("/telegram/code", response_model=AuthResponse)
-async def submit_telegram_code(data: TelegramAuthCode):
+async def submit_telegram_code(
+    data: TelegramAuthCode,
+    user_id: int = Depends(require_user_id)
+):
     """
     Подтверждение кода авторизации Telegram
     """
@@ -122,15 +129,17 @@ async def submit_telegram_code(data: TelegramAuthCode):
         )
 
 @router.get("/status")
-async def get_auth_status():
+async def get_auth_status(user_id: int = Depends(require_user_id)):
     """
-    Получение статуса авторизации
+    Получение статуса авторизации — только сессии текущего пользователя
     """
     try:
         sessions = await db.fetch(
             """SELECT id, phone_number, is_active, created_at, updated_at
                FROM telegram_sessions
-               ORDER BY created_at DESC"""
+               WHERE user_id = $1
+               ORDER BY created_at DESC""",
+            user_id
         )
         
         return {
@@ -145,22 +154,32 @@ async def get_auth_status():
         )
 
 @router.delete("/telegram/{session_id}")
-async def logout_telegram(session_id: int):
+async def logout_telegram(
+    session_id: int,
+    user_id: int = Depends(require_user_id)
+):
     """
-    Выход из Telegram аккаунта
+    Выход из Telegram аккаунта (только своя сессия)
     """
     try:
-        # Деактивируем сессию
+        # Проверяем владельца сессии
+        owner = await db.fetchval(
+            "SELECT user_id FROM telegram_sessions WHERE id = $1", session_id
+        )
+        if owner is None:
+            raise HTTPException(status_code=404, detail="Сессия не найдена")
+        if owner != user_id:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
+
         await db.execute(
             "UPDATE telegram_sessions SET is_active = false WHERE id = $1",
             session_id
         )
-        
-        # Останавливаем клиент
         await telegram_manager.stop_client(session_id)
-        
         return {"success": True, "message": "Выход выполнен"}
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -1,7 +1,7 @@
 """
 Роутер для рассылки сообщений через Telegram
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks, status
+from fastapi import APIRouter, HTTPException, BackgroundTasks, status, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 import asyncio
@@ -10,6 +10,7 @@ import logging
 
 from database.database import db
 from services.telegram_client import TelegramClientManager
+from services.auth_deps import require_user_id, verify_session_owner
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -106,23 +107,27 @@ async def broadcast_ping():
 
 
 @router.post("/send", response_model=BroadcastResponse, status_code=status.HTTP_202_ACCEPTED)
-async def start_broadcast(data: BroadcastRequest, background_tasks: BackgroundTasks):
+async def start_broadcast(
+    data: BroadcastRequest,
+    background_tasks: BackgroundTasks,
+    user_id: int = Depends(require_user_id)
+):
     """
-    Запустить рассылку.
-    Требует активную Telegram-сессию в БД.
+    Запустить рассылку. Использует сессию текущего пользователя.
     """
     if not data.text.strip():
         raise HTTPException(status_code=400, detail="Текст сообщения не может быть пустым")
     if not data.recipients:
         raise HTTPException(status_code=400, detail="Список получателей пуст")
 
-    # Берём первую активную сессию
+    # Берём первую активную сессию текущего пользователя
     session = await db.fetchrow(
         """SELECT id, api_id, api_hash, session_string
            FROM telegram_sessions
-           WHERE is_active = true AND session_string IS NOT NULL
+           WHERE user_id = $1 AND is_active = true AND session_string IS NOT NULL
            ORDER BY updated_at DESC
-           LIMIT 1"""
+           LIMIT 1""",
+        user_id
     )
     if not session:
         raise HTTPException(
@@ -130,7 +135,6 @@ async def start_broadcast(data: BroadcastRequest, background_tasks: BackgroundTa
             detail="Нет активной Telegram-сессии. Сначала авторизуйтесь на вкладке Telegram."
         )
 
-    # Создаём задачу в БД
     task_id = await db.fetchval(
         """INSERT INTO broadcast_tasks (session_id, message_text, total_count, status)
            VALUES ($1, $2, $3, 'running') RETURNING id""",
@@ -138,15 +142,10 @@ async def start_broadcast(data: BroadcastRequest, background_tasks: BackgroundTa
     )
 
     background_tasks.add_task(
-        run_broadcast,
-        task_id,
-        session["id"],
-        int(session["api_id"]),
-        session["api_hash"],
-        session["session_string"],
-        data.text,
-        data.recipients,
-        data.delay_seconds,
+        run_broadcast, task_id, session["id"],
+        int(session["api_id"]), session["api_hash"],
+        session["session_string"], data.text,
+        data.recipients, data.delay_seconds,
     )
 
     return BroadcastResponse(
@@ -157,44 +156,46 @@ async def start_broadcast(data: BroadcastRequest, background_tasks: BackgroundTa
 
 
 @router.get("/status/{task_id}", response_model=BroadcastStatus)
-async def get_broadcast_status(task_id: int):
-    """Статус конкретной задачи рассылки"""
+async def get_broadcast_status(
+    task_id: int,
+    user_id: int = Depends(require_user_id)
+):
+    """Статус задачи рассылки (только свои)"""
     task = await db.fetchrow(
-        "SELECT id, status, total_count FROM broadcast_tasks WHERE id = $1",
-        task_id
+        """SELECT bt.id, bt.status, bt.total_count FROM broadcast_tasks bt
+           JOIN telegram_sessions ts ON bt.session_id = ts.id
+           WHERE bt.id = $1 AND ts.user_id = $2""",
+        task_id, user_id
     )
     if not task:
         raise HTTPException(status_code=404, detail="Задача не найдена")
-
     results = await db.fetch(
         "SELECT recipient, success, error FROM broadcast_results WHERE task_id = $1",
         task_id
     )
-
-    sent = sum(1 for r in results if r["success"])
+    sent   = sum(1 for r in results if r["success"])
     failed = sum(1 for r in results if not r["success"])
-
     return BroadcastStatus(
-        task_id=task_id,
-        status=task["status"],
-        total=task["total_count"],
-        sent=sent,
-        failed=failed,
+        task_id=task_id, status=task["status"], total=task["total_count"],
+        sent=sent, failed=failed,
         results=[RecipientResult(**dict(r)) for r in results]
     )
 
 
 @router.get("/history")
-async def get_broadcast_history():
-    """История всех задач рассылки"""
+async def get_broadcast_history(user_id: int = Depends(require_user_id)):
+    """История задач рассылки — только свои"""
     tasks = await db.fetch(
         """SELECT bt.id, bt.message_text, bt.total_count, bt.status, bt.created_at,
                   COUNT(br.id) FILTER (WHERE br.success) AS sent_count,
                   COUNT(br.id) FILTER (WHERE NOT br.success) AS failed_count
            FROM broadcast_tasks bt
+           JOIN telegram_sessions ts ON bt.session_id = ts.id
            LEFT JOIN broadcast_results br ON br.task_id = bt.id
+           WHERE ts.user_id = $1
            GROUP BY bt.id
            ORDER BY bt.created_at DESC
-           LIMIT 50"""
+           LIMIT 50""",
+        user_id
     )
     return {"tasks": [dict(t) for t in tasks]}

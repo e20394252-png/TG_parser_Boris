@@ -1,12 +1,13 @@
 """
 Роутер для управления настройками пользователя
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import json
 
 from database.database import db
+from services.auth_deps import require_user_id
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -18,15 +19,12 @@ class SettingsExport(BaseModel):
     settings: Dict[str, Any]
 
 @router.get("")
-async def get_settings(session_id: Optional[int] = Query(None)):
-    """Получение всех настроек пользователя"""
+async def get_settings(user_id: int = Depends(require_user_id)):
+    """Получение настроек текущего пользователя"""
     try:
-        if not session_id:
-            session_id = 1  # TODO: получать из контекста авторизации
-        
         settings = await db.fetch(
             "SELECT setting_key, setting_value FROM user_settings WHERE session_id = $1",
-            session_id
+            user_id
         )
         
         # Преобразуем в словарь
@@ -75,57 +73,43 @@ async def get_settings(session_id: Optional[int] = Query(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("")
-async def update_settings(update: SettingUpdate, session_id: Optional[int] = Query(None)):
+async def update_settings(
+    update: SettingUpdate,
+    user_id: int = Depends(require_user_id)
+):
     """Обновление настройки"""
     try:
-        if not session_id:
-            session_id = 1
-        
         await db.execute(
             """INSERT INTO user_settings (session_id, setting_key, setting_value)
                VALUES ($1, $2, $3)
                ON CONFLICT (session_id, setting_key)
                DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = CURRENT_TIMESTAMP""",
-            session_id, update.key, json.dumps(update.value)
+            user_id, update.key, json.dumps(update.value)
         )
-        
-        return {
-            "success": True,
-            "message": f"Настройка '{update.key}' обновлена"
-        }
-    
+        return {"success": True, "message": f"Настройка '{update.key}' обновлена"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/export")
-async def export_settings(session_id: Optional[int] = Query(None)):
-    """Экспорт всех настроек"""
+async def export_settings(user_id: int = Depends(require_user_id)):
+    """Экспорт настроек"""
     try:
-        if not session_id:
-            session_id = 1
-        
         settings = await db.fetch(
             "SELECT setting_key, setting_value FROM user_settings WHERE session_id = $1",
-            session_id
+            user_id
         )
-        
         settings_dict = {s['setting_key']: s['setting_value'] for s in settings}
-        
-        return {
-            "success": True,
-            "export": settings_dict
-        }
-    
+        return {"success": True, "export": settings_dict}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/import")
-async def import_settings(data: SettingsExport, session_id: Optional[int] = Query(None)):
+async def import_settings(
+    data: SettingsExport,
+    user_id: int = Depends(require_user_id)
+):
     """Импорт настроек"""
     try:
-        if not session_id:
-            session_id = 1
-        
         imported_count = 0
         for key, value in data.settings.items():
             await db.execute(
@@ -133,34 +117,24 @@ async def import_settings(data: SettingsExport, session_id: Optional[int] = Quer
                    VALUES ($1, $2, $3)
                    ON CONFLICT (session_id, setting_key)
                    DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = CURRENT_TIMESTAMP""",
-                session_id, key, json.dumps(value)
+                user_id, key, json.dumps(value)
             )
             imported_count += 1
-        
-        return {
-            "success": True,
-            "imported": imported_count
-        }
-    
+        return {"success": True, "imported": imported_count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{key}")
-async def delete_setting(key: str, session_id: Optional[int] = Query(None)):
+async def delete_setting(
+    key: str,
+    user_id: int = Depends(require_user_id)
+):
     """Удаление настройки"""
     try:
-        if not session_id:
-            session_id = 1
-        
         await db.execute(
             "DELETE FROM user_settings WHERE session_id = $1 AND setting_key = $2",
-            session_id, key
+            user_id, key
         )
-        
-        return {
-            "success": True,
-            "message": f"Настройка '{key}' удалена"
-        }
-    
+        return {"success": True, "message": f"Настройка '{key}' удалена"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
