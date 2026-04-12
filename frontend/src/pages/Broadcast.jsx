@@ -50,9 +50,10 @@ function StatusBadge({ status }) {
 /* ──────────────────────────────────────────────
    Task history row
 ─────────────────────────────────────────────── */
-function TaskRow({ task }) {
+function TaskRow({ task, onDelete }) {
     const [open, setOpen] = useState(false);
     const [detail, setDetail] = useState(null);
+    const [deleting, setDeleting] = useState(false);
 
     async function loadDetail() {
         if (detail) { setOpen(o => !o); return; }
@@ -63,12 +64,24 @@ function TaskRow({ task }) {
         } catch { /* ignore */ }
     }
 
+    async function handleDelete(e) {
+        e.stopPropagation();
+        if (!window.confirm('Удалить эту рассылку из истории?')) return;
+        setDeleting(true);
+        try {
+            await broadcastAPI.deleteTask(task.id);
+            onDelete(task.id);
+        } catch {
+            setDeleting(false);
+        }
+    }
+
     const pct = task.total_count > 0
         ? Math.round(((task.sent_count || 0) / task.total_count) * 100)
         : 0;
 
     return (
-        <div className="broadcast-task-row">
+        <div className="broadcast-task-row" style={{ opacity: deleting ? 0.5 : 1 }}>
             <div className="broadcast-task-header" onClick={loadDetail}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
                     <StatusBadge status={task.status} />
@@ -76,22 +89,24 @@ function TaskRow({ task }) {
                         {task.message_text}
                     </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
                     <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                         {new Date(task.created_at).toLocaleString('ru')}
                     </span>
                     <div style={{ display: 'flex', gap: 6 }}>
-                        <span style={{ color: 'var(--neon-green)', fontSize: '0.9rem' }}>
-                            ✓{task.sent_count || 0}
-                        </span>
-                        <span style={{ color: 'var(--neon-pink)', fontSize: '0.9rem' }}>
-                            ✗{task.failed_count || 0}
-                        </span>
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                            /{task.total_count}
-                        </span>
+                        <span style={{ color: 'var(--neon-green)', fontSize: '0.9rem' }}>✓{task.sent_count || 0}</span>
+                        <span style={{ color: 'var(--neon-pink)',  fontSize: '0.9rem' }}>✗{task.failed_count || 0}</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>/{task.total_count}</span>
                     </div>
                     {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <button
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        title="Удалить"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--neon-pink)', padding: '2px 4px', display: 'flex', alignItems: 'center' }}
+                    >
+                        <Trash2 size={14} />
+                    </button>
                 </div>
             </div>
 
@@ -107,20 +122,16 @@ function TaskRow({ task }) {
                         <div key={i} className="broadcast-result-item">
                             {r.success
                                 ? <CheckCircle size={14} color="var(--neon-green)" />
-                                : <XCircle   size={14} color="var(--neon-pink)"  />
+                                : <XCircle    size={14} color="var(--neon-pink)"  />
                             }
                             <span style={{ flex: 1 }}>{r.recipient}</span>
                             {r.error && (
-                                <span style={{ color: 'var(--neon-pink)', fontSize: '0.8rem' }}>
-                                    {r.error}
-                                </span>
+                                <span style={{ color: 'var(--neon-pink)', fontSize: '0.8rem' }}>{r.error}</span>
                             )}
                         </div>
                     ))}
                     {detail.results.length === 0 && (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                            Нет данных
-                        </span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Нет данных</span>
                     )}
                 </div>
             )}
@@ -134,7 +145,7 @@ function TaskRow({ task }) {
 export default function Broadcast() {
     const [text, setText]         = useState('');
     const [recipients, setRecs]   = useState('');
-    const [delay, setDelay]       = useState(3);
+    const [delay, setDelay]       = useState(5);
     const [sending, setSending]   = useState(false);
     const [result, setResult]     = useState(null);   // { type: 'success'|'error', msg }
     const [tasks, setTasks]       = useState([]);
@@ -187,6 +198,20 @@ export default function Broadcast() {
             setResult({ type: 'error', msg });
         } finally {
             setSending(false);
+        }
+    }
+
+    async function deleteOne(taskId) {
+        setTasks(prev => prev.filter(t => t.id !== taskId));
+    }
+
+    async function clearAll() {
+        if (!window.confirm(`Удалить всю историю рассылок (${tasks.length} записей)?`)) return;
+        try {
+            await broadcastAPI.clearHistory();
+            setTasks([]);
+        } catch (e) {
+            console.error(e);
         }
     }
 
@@ -285,7 +310,7 @@ export default function Broadcast() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <input
                                 type="range"
-                                min={1} max={30} step={0.5}
+                                min={3} max={60} step={1}
                                 value={delay}
                                 onChange={e => setDelay(Number(e.target.value))}
                                 className="broadcast-range"
@@ -293,7 +318,7 @@ export default function Broadcast() {
                             <span className="broadcast-range-val">{delay}с</span>
                         </div>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                            Минимум 3 сек. — защита от блокировки аккаунта
+                            ⚡ Рекомендуем 10–30 сек. для защиты аккаунта от бана.
                         </div>
                     </div>
 
@@ -336,9 +361,21 @@ export default function Broadcast() {
                             <p>Запустите вашу первую рассылку слева</p>
                         </div>
                     ) : (
-                        <div className="broadcast-tasks-list">
-                            {tasks.map(t => <TaskRow key={t.id} task={t} />)}
-                        </div>
+                        <>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                                <button
+                                    className="btn btn-ghost"
+                                    onClick={clearAll}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--neon-pink)', fontSize: '0.85rem' }}
+                                    title="Очистить всю историю"
+                                >
+                                    <Trash2 size={14} /> Очистить всё
+                                </button>
+                            </div>
+                            <div className="broadcast-tasks-list">
+                                {tasks.map(t => <TaskRow key={t.id} task={t} onDelete={deleteOne} />)}
+                            </div>
+                        </>
                     )}
                 </div>
             </div>

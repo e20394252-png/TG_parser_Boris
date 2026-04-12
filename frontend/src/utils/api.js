@@ -113,10 +113,12 @@ export const settingsAPI = {
 
 // Broadcast
 export const broadcastAPI = {
-    send:       (data)   => api.post('/broadcast/send', data),
-    getHistory: ()       => api.get('/broadcast/history'),
-    getStatus:  (taskId) => api.get(`/broadcast/status/${taskId}`),
-    getToday:   ()       => api.get('/broadcast/today'),
+    send:         (data)   => api.post('/broadcast/send', data),
+    getHistory:   ()       => api.get('/broadcast/history'),
+    getStatus:    (taskId) => api.get(`/broadcast/status/${taskId}`),
+    getToday:     ()       => api.get('/broadcast/today'),
+    deleteTask:   (taskId) => api.delete(`/broadcast/${taskId}`),
+    clearHistory: ()       => api.delete('/broadcast/history'),
 };
 
 export default api;

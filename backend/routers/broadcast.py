@@ -222,3 +222,45 @@ async def get_today_broadcast_stats(user_id: int = Depends(require_user_id)):
         "messages_planned":  int(result["messages_planned"]  or 0),
     }
 
+
+@router.delete("/history")
+async def clear_broadcast_history(user_id: int = Depends(require_user_id)):
+    """Удалить всю историю рассылок текущего пользователя"""
+    tasks = await db.fetch(
+        """SELECT bt.id FROM broadcast_tasks bt
+           JOIN telegram_sessions ts ON bt.session_id = ts.id
+           WHERE ts.user_id = $1""",
+        user_id
+    )
+    task_ids = [t["id"] for t in tasks]
+    if task_ids:
+        await db.execute(
+            "DELETE FROM broadcast_results WHERE task_id = ANY($1::int[])", task_ids
+        )
+        await db.execute(
+            """DELETE FROM broadcast_tasks bt
+               USING telegram_sessions ts
+               WHERE bt.session_id = ts.id AND ts.user_id = $1""",
+            user_id
+        )
+    return {"success": True, "deleted": len(task_ids)}
+
+
+@router.delete("/{task_id}")
+async def delete_broadcast_task(
+    task_id: int,
+    user_id: int = Depends(require_user_id)
+):
+    """Удалить одну задачу рассылки"""
+    row = await db.fetchrow(
+        """SELECT bt.id FROM broadcast_tasks bt
+           JOIN telegram_sessions ts ON bt.session_id = ts.id
+           WHERE bt.id = $1 AND ts.user_id = $2""",
+        task_id, user_id
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Задача не найдена или нет доступа")
+    await db.execute("DELETE FROM broadcast_results WHERE task_id = $1", task_id)
+    await db.execute("DELETE FROM broadcast_tasks WHERE id = $1", task_id)
+    return {"success": True}
+
