@@ -30,6 +30,7 @@ services:
   - type: web
     name: telegram-parser-backend
     env: python
+    rootDir: backend
     plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
@@ -56,6 +57,7 @@ services:
   - type: web
     name: telegram-parser-frontend
     env: static
+    rootDir: frontend
     plan: starter
     buildCommand: npm install && npm run build
     staticPublishPath: dist
