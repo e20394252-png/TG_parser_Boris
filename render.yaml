@@ -52,6 +52,14 @@ services:
         sync: false
       - key: GOOGLE_AI_API_KEY
         sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_NAME
+        sync: false
+      - key: ALLOWED_TELEGRAM_IDS
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
 
   # Frontend React
   - type: web
@@ -63,7 +71,9 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        value: https://${telegram-parser-backend.host}
+        value: https://${telegram-parser-backend.host}/api
+      - key: VITE_TELEGRAM_BOT_NAME
+        sync: false
     routes:
       - type: rewrite
         source: /api/*

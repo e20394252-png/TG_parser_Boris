@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Activity, MessageSquare, Settings as SettingsIcon, Brain, BarChart3, Search, Bot, Send, BookOpen } from 'lucide-react';
+import { Activity, MessageSquare, Settings as SettingsIcon, Brain, BarChart3, Search, Bot, Send, BookOpen, LogOut } from 'lucide-react';
 import './App.css';
 
+import { AuthProvider, useAuth } from './context/AuthContext';
+import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import SettingsPanel from './components/SettingsPanel';
 import TelegramAuth from './pages/TelegramAuth';
@@ -19,6 +21,7 @@ function AppContent() {
     const location = useLocation();
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [mcpModalOpen, setMcpModalOpen] = useState(false);
+    const { user, logout } = useAuth();
 
     const isActive = (path) => {
         return location.pathname === path;
@@ -73,6 +76,34 @@ function AppContent() {
                     </Link>
                 </nav>
 
+                {/* Профиль пользователя */}
+                <div style={{
+                    padding: '12px 16px',
+                    borderTop: '1px solid var(--border-color)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                }}>
+                    {user?.photo_url && (
+                        <img src={user.photo_url} alt="" style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0 }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {user?.first_name} {user?.last_name || ''}
+                        </div>
+                        {user?.username && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>@{user.username}</div>
+                        )}
+                    </div>
+                    <button
+                        onClick={logout}
+                        title="Выйти"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex' }}
+                    >
+                        <LogOut size={16} />
+                    </button>
+                </div>
+
                 <div className="sidebar-footer">
                     <MCPStatusIndicator onDetailsClick={() => setMcpModalOpen(true)} />
 
@@ -110,10 +141,18 @@ function AppContent() {
 
 function App() {
     return (
-        <Router>
-            <AppContent />
-        </Router>
+        <AuthProvider>
+            <Router>
+                <AuthGate />
+            </Router>
+        </AuthProvider>
     );
+}
+
+function AuthGate() {
+    const { isAuthenticated } = useAuth();
+    if (!isAuthenticated) return <LoginPage />;
+    return <AppContent />;
 }
 
 export default App;

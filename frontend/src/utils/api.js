@@ -9,6 +9,26 @@ const api = axios.create({
     },
 });
 
+// Прикрепляем JWT ко всем запросам
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem('tg_parser_token');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+});
+
+// При 401 — принудительный выход
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            localStorage.removeItem('tg_parser_token');
+            localStorage.removeItem('tg_parser_user');
+            window.location.reload();
+        }
+        return Promise.reject(error);
+    }
+);
+
 // Auth
 export const authAPI = {
     startTelegramAuth: (data) => api.post('/auth/telegram/start', data),

@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from database.database import db
-from routers import auth, monitoring, responses, statistics, conversations, settings, mcp_status, ai, broadcast
+from routers import auth, monitoring, responses, statistics, conversations, settings, mcp_status, ai, broadcast, login
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -59,6 +59,7 @@ app.include_router(conversations.router, prefix="/api/conversations", tags=["Con
 app.include_router(settings.router, prefix="/api/settings", tags=["Settings"])
 app.include_router(mcp_status.router, prefix="/api", tags=["MCP Status"])
 app.include_router(broadcast.router, prefix="/api/broadcast", tags=["Broadcast"])
+app.include_router(login.router, prefix="/api/login", tags=["Login"])
 
 @app.get("/")
 async def root():
