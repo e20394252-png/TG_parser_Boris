@@ -60,8 +60,8 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: ADMIN_PASSWORD
-        sync: false
+      - key: SEED_USERS
+        value: admin:admin:admin,user1:user1:user,user2:user2:user
 
   # Frontend React
   - type: web

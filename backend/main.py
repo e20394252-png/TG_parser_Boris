@@ -20,6 +20,9 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 Starting Telegram Parser Backend...")
     await db.connect()
+    # Создаём пользователей по умолчанию
+    from services.user_seed import seed_users
+    await seed_users()
     yield
     # Shutdown
     logger.info("🛑 Shutting down...")

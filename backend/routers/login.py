@@ -118,29 +118,50 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
 # ──────────────── Endpoints ────────────────
 
 class PasswordLoginRequest(BaseModel):
+    username: str
     password: str
 
 
 @router.post("/password", response_model=LoginResponse)
 async def login_via_password(data: PasswordLoginRequest):
     """
-    Резервный вход по паролю администратора.
-    Пароль задаётся через env-переменную ADMIN_PASSWORD.
+    Вход по username + password.
+    Пользователи создаются автоматически при старте (SeedUsers).
     """
-    admin_password = os.getenv("ADMIN_PASSWORD", "")
-    if not admin_password:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Вход по паролю не настроен (ADMIN_PASSWORD не задан)"
-        )
-    if data.password != admin_password:
+    from passlib.hash import bcrypt as bcrypt_hash
+    from database.database import db
+
+    user = await db.fetchrow(
+        "SELECT id, username, password_hash FROM users WHERE username = $1",
+        data.username
+    )
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Неверный пароль"
+            detail="Неверный логин или пароль"
         )
-    token = create_jwt(0, "admin", "Administrator")
-    user_info = {"id": 0, "first_name": "Administrator", "last_name": None, "username": "admin", "photo_url": None}
-    logger.info("✅ Login via password (admin)")
+
+    if not bcrypt_hash.verify(data.password, user["password_hash"]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Неверный логин или пароль"
+        )
+
+    # Обновляем last_login
+    await db.execute(
+        "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1",
+        user["id"]
+    )
+
+    token = create_jwt(user["id"], data.username, data.username)
+    user_info = {
+        "id": user["id"],
+        "first_name": data.username,
+        "last_name": None,
+        "username": data.username,
+        "photo_url": None,
+    }
+    logger.info(f"✅ Login: {data.username} (id={user['id']})")
     return LoginResponse(token=token, user=user_info)
 
 

@@ -10,6 +10,7 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [botName, setBotName] = useState(BOT_NAME);
     const [usePassword, setUsePassword] = useState(false);
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const widgetRef = useRef(null);
 
@@ -71,7 +72,7 @@ export default function LoginPage() {
             const res = await fetch(`${API_BASE}/login/password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password }),
+                body: JSON.stringify({ username, password }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.detail || 'Неверный пароль');
@@ -104,19 +105,28 @@ export default function LoginPage() {
 
                 <h1 style={styles.heading}>Добро пожаловать</h1>
                 <p style={styles.subheading}>
-                    {usePassword ? 'Введите пароль для входа' : 'Войдите через Telegram, чтобы получить доступ к сервису'}
+                    {usePassword ? 'Введите данные для входа' : 'Войдите через Telegram, чтобы получить доступ к сервису'}
                 </p>
 
                 {/* Виджет или Пароль */}
                 <div style={styles.widgetWrap}>
                     {usePassword ? (
-                        <form onSubmit={handlePasswordLogin} style={{ width: '100%' }}>
+                        <form onSubmit={handlePasswordLogin} style={{ width: '100%', marginTop: 12 }}>
+                            <input 
+                                type="text" 
+                                value={username} 
+                                onChange={(e) => setUsername(e.target.value)}
+                                placeholder="Логин"
+                                style={{ ...styles.input, marginBottom: 8 }}
+                                required
+                            />
                             <input 
                                 type="password" 
                                 value={password} 
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Введите пароль"
+                                placeholder="Пароль"
                                 style={styles.input}
+                                required
                             />
                             <button type="submit" style={styles.button} disabled={loading}>
                                 {loading ? 'Вход...' : 'Войти'}
