@@ -24,5 +24,5 @@ RUN mkdir -p /app/sessions
 # Открытие порта
 EXPOSE 8000
 
-# Запуск приложения
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "$PORT"]
+# Запуск приложения (shell-форма для поддержки $PORT от Render)
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
