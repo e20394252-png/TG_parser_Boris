@@ -1,70 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://tg-parser-boris.onrender.com/api';
-const BOT_NAME = import.meta.env.VITE_TELEGRAM_BOT_NAME || '';
 
 export default function LoginPage() {
     const { login } = useAuth();
-    const [error,   setError]   = useState('');
-    const [loading, setLoading] = useState(false);
-    const [botName, setBotName] = useState(BOT_NAME);
-    const [usePassword, setUsePassword] = useState(false);
+    const [error,    setError]    = useState('');
+    const [loading,  setLoading]  = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const widgetRef = useRef(null);
 
-    // Получаем имя бота с бэкенда (если не задано в env)
-    useEffect(() => {
-        if (botName) return;
-        fetch(`${API_BASE}/login/config`)
-            .then(r => r.json())
-            .then(d => { if (d.bot_name) setBotName(d.bot_name); })
-            .catch(() => {});
-    }, [botName]);
-
-    // Вставляем виджет как только botName известен
-    useEffect(() => {
-        if (!botName || !widgetRef.current || usePassword) return;
-
-        // Очищаем предыдущий виджет
-        widgetRef.current.innerHTML = '';
-
-        // Глобальная функция-callback для виджета
-        window.onTelegramAuth = async (tgUser) => {
-            setLoading(true);
-            setError('');
-            try {
-                const res = await fetch(`${API_BASE}/login/telegram`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(tgUser),
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.detail || 'Ошибка авторизации');
-                login(data.token, data.user);
-            } catch (e) {
-                setError(e.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        // Создаём тег <script> для виджета
-        const script = document.createElement('script');
-        script.src = 'https://telegram.org/js/telegram-widget.js?22';
-        script.setAttribute('data-telegram-login', botName);
-        script.setAttribute('data-size', 'large');
-        script.setAttribute('data-radius', '8');
-        script.setAttribute('data-onauth', 'onTelegramAuth(user)');
-        script.setAttribute('data-request-access', 'write');
-        script.async = true;
-        widgetRef.current.appendChild(script);
-
-        return () => { delete window.onTelegramAuth; };
-    }, [botName, login, usePassword]);
-
-    const handlePasswordLogin = async (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError('');
@@ -75,7 +21,7 @@ export default function LoginPage() {
                 body: JSON.stringify({ username, password }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Неверный пароль');
+            if (!res.ok) throw new Error(data.detail || 'Неверный логин или пароль');
             login(data.token, data.user);
         } catch (e) {
             setError(e.message);
@@ -104,63 +50,35 @@ export default function LoginPage() {
                 </div>
 
                 <h1 style={styles.heading}>Добро пожаловать</h1>
-                <p style={styles.subheading}>
-                    {usePassword ? 'Введите данные для входа' : 'Войдите через Telegram, чтобы получить доступ к сервису'}
-                </p>
+                <p style={styles.subheading}>Введите данные для входа</p>
 
-                {/* Виджет или Пароль */}
-                <div style={styles.widgetWrap}>
-                    {usePassword ? (
-                        <form onSubmit={handlePasswordLogin} style={{ width: '100%', marginTop: 12 }}>
-                            <input 
-                                type="text" 
-                                value={username} 
-                                onChange={(e) => setUsername(e.target.value)}
-                                placeholder="Логин"
-                                style={{ ...styles.input, marginBottom: 8 }}
-                                required
-                            />
-                            <input 
-                                type="password" 
-                                value={password} 
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Пароль"
-                                style={styles.input}
-                                required
-                            />
-                            <button type="submit" style={styles.button} disabled={loading}>
-                                {loading ? 'Вход...' : 'Войти'}
-                            </button>
-                        </form>
-                    ) : !botName ? (
-                        <div style={styles.noBot}>
-                            ⚠️ Имя бота не задано.<br />
-                            <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
-                                Установите <code>VITE_TELEGRAM_BOT_NAME</code> в env Render.
-                            </span>
-                        </div>
-                    ) : loading ? (
-                        <div style={styles.loadingText}>Проверяем данные...</div>
-                    ) : (
-                        <div ref={widgetRef} style={{ display: 'flex', justifyContent: 'center' }} />
-                    )}
-                </div>
-
-                {/* Ошибка */}
-                {error && (
-                    <div style={styles.errorBox}>
-                        {error}
-                    </div>
-                )}
-
-                <div style={{ marginTop: 10 }}>
-                    <button 
-                        onClick={() => setUsePassword(!usePassword)} 
-                        style={styles.linkButton}
-                    >
-                        {usePassword ? 'Войти через Telegram' : 'Войти по паролю'}
+                <form onSubmit={handleLogin} style={styles.form}>
+                    <input
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="Логин"
+                        style={{ ...styles.input, marginBottom: 10 }}
+                        autoComplete="username"
+                        required
+                    />
+                    <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Пароль"
+                        style={styles.input}
+                        autoComplete="current-password"
+                        required
+                    />
+                    <button type="submit" style={styles.button} disabled={loading}>
+                        {loading ? 'Вход...' : 'Войти'}
                     </button>
-                </div>
+                </form>
+
+                {error && (
+                    <div style={styles.errorBox}>{error}</div>
+                )}
 
                 <p style={styles.hint}>
                     🔒 Доступ разрешён только для авторизованных пользователей
@@ -235,7 +153,7 @@ const styles = {
         color: 'rgba(0,212,255,0.8)', marginTop: 2,
     },
     heading: {
-        fontSize: '1.75rem', fontWeight: 700, color: '#fff',
+        fontSize: '1.75rem', fontWeight: 700,
         margin: '0 0 10px',
         background: 'linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.6) 100%)',
         WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
@@ -245,21 +163,38 @@ const styles = {
         fontSize: '0.95rem', color: 'rgba(255,255,255,0.45)',
         margin: '0 0 32px', lineHeight: 1.5,
     },
-    widgetWrap: {
-        minHeight: 56, display: 'flex', alignItems: 'center',
-        justifyContent: 'center', marginBottom: 20,
+    form: {
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0,
+        marginBottom: 16,
     },
-    noBot: {
-        padding: '16px 20px',
-        background: 'rgba(255, 165, 0, 0.08)',
-        border: '1px solid rgba(255, 165, 0, 0.3)',
-        borderRadius: 10, fontSize: '0.9rem',
-        color: 'rgba(255, 165, 0, 0.85)',
-        lineHeight: 1.6,
+    input: {
+        width: '100%',
+        padding: '13px 16px',
+        background: 'rgba(255,255,255,0.06)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: 10,
+        color: '#fff',
+        fontSize: '0.95rem',
+        outline: 'none',
+        boxSizing: 'border-box',
+        transition: 'border-color 0.2s',
     },
-    loadingText: {
-        color: 'rgba(0,212,255,0.8)', fontSize: '0.9rem',
-        animation: 'pulse 1.5s ease-in-out infinite',
+    button: {
+        marginTop: 14,
+        width: '100%',
+        padding: '14px',
+        background: 'linear-gradient(135deg, #00d4ff, #7c3aed)',
+        border: 'none',
+        borderRadius: 10,
+        color: '#fff',
+        fontSize: '1rem',
+        fontWeight: 700,
+        cursor: 'pointer',
+        transition: 'opacity 0.2s',
+        letterSpacing: '0.03em',
     },
     errorBox: {
         padding: '12px 16px',
@@ -271,6 +206,6 @@ const styles = {
     },
     hint: {
         fontSize: '0.78rem', color: 'rgba(255,255,255,0.25)',
-        margin: '8px 0 0', lineHeight: 1.5,
+        margin: '16px 0 0', lineHeight: 1.5,
     },
 };
