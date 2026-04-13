@@ -58,6 +58,7 @@ export const monitoringAPI = {
     addChat: (data) => api.post('/monitoring/chats', data),
     removeChat: (chatId) => api.delete(`/monitoring/chats/${chatId}`),
     toggleChat: (chatId) => api.patch(`/monitoring/chats/${chatId}/toggle`),
+    resolveChat: (data) => api.post('/monitoring/resolve-chat', data),
 
     getFilters: (sessionId) => api.get('/monitoring/filters', { params: { session_id: sessionId } }),
     createFilter: (data) => api.post('/monitoring/filters', data),

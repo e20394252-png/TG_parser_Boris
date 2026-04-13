@@ -8,8 +8,10 @@ from datetime import datetime
 
 from database.database import db
 from services.auth_deps import require_user_id, verify_session_owner
+from services.telegram_client import TelegramClientManager
 
 router = APIRouter()
+_tg_manager = TelegramClientManager()
 
 class MonitoredChatCreate(BaseModel):
     session_id: int
@@ -322,3 +324,68 @@ async def toggle_filter(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при переключении фильтра: {str(e)}"
         )
+
+
+# ── Резолвинг чата по ссылке / юзернейму ─────────────────────────────────────
+
+class ResolveChatRequest(BaseModel):
+    session_id: int
+    query: str  # https://t.me/username | t.me/username | @username | username
+
+
+def _parse_username(query: str) -> str:
+    """Извлекает username из любого формата ввода."""
+    q = query.strip()
+    if "t.me/" in q:
+        # https://t.me/sochiworld  или  t.me/sochiworld/123
+        q = q.split("t.me/")[-1].split("/")[0].split("?")[0]
+    if q.startswith("@"):
+        q = q[1:]
+    return q.strip()
+
+
+@router.post("/resolve-chat")
+async def resolve_chat(
+    data: ResolveChatRequest,
+    user_id: int = Depends(require_user_id),
+):
+    """
+    Резолвит публичный чат по ссылке или @username через активную Telegram-сессию.
+    Возвращает {chat_id, title, username} для подтверждения перед добавлением.
+    """
+    await verify_session_owner(data.session_id, user_id)
+
+    session = await db.fetchrow(
+        "SELECT api_id, api_hash, session_string FROM telegram_sessions WHERE id = $1",
+        data.session_id,
+    )
+    if not session or not session["session_string"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Telegram-сессия не подключена. Сначала авторизуйтесь в разделе «Авторизация ТГ».",
+        )
+
+    username = _parse_username(data.query)
+    if not username:
+        raise HTTPException(status_code=400, detail="Не удалось распознать ссылку или username")
+
+    try:
+        client = await _tg_manager.get_client(
+            data.session_id,
+            int(session["api_id"]),
+            session["api_hash"],
+            session["session_string"],
+        )
+        entity = await client.get_entity(username)
+
+        raw_id   = entity.id
+        title    = getattr(entity, "title", None) or getattr(entity, "first_name", username)
+        uname    = getattr(entity, "username", None)
+
+        return {
+            "chat_id":  raw_id,
+            "title":    title,
+            "username": f"@{uname}" if uname else None,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Не удалось найти чат: {str(e)}")

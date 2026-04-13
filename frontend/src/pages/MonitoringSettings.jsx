@@ -1,116 +1,129 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Plus, Trash2, Filter, MessageSquare } from 'lucide-react';
-import { monitoringAPI, responsesAPI } from '../utils/api';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Trash2, Filter, MessageSquare, Link, Search, CheckCircle, XCircle, Loader } from 'lucide-react';
+import { monitoringAPI, responsesAPI, authAPI } from '../utils/api';
+
+/* ── Утилита: парсим username прямо на фронте для placeholder ── */
+function previewUsername(q) {
+    if (!q) return '';
+    if (q.includes('t.me/')) return '@' + q.split('t.me/')[1].split('/')[0].split('?')[0];
+    if (q.startsWith('@')) return q;
+    return '@' + q;
+}
 
 export default function MonitoringSettings() {
-    const [chats, setChats] = useState([]);
-    const [filters, setFilters] = useState([]);
+    const [chats,     setChats]     = useState([]);
+    const [filters,   setFilters]   = useState([]);
     const [responses, setResponses] = useState([]);
-    const [showAddChat, setShowAddChat] = useState(false);
-    const [showAddFilter, setShowAddFilter] = useState(false);
-    const [showAddResponse, setShowAddResponse] = useState(false);
+    const [sessionId, setSessionId] = useState(null);   // ID активной TG-сессии
 
-    useEffect(() => {
-        loadData();
-    }, []);
+    /* --- Add-chat state --- */
+    const [showAddChat,   setShowAddChat]   = useState(false);
+    const [chatQuery,     setChatQuery]     = useState('');     // input от пользователя
+    const [resolving,     setResolving]     = useState(false);
+    const [resolveError,  setResolveError]  = useState('');
+    const [resolvedChat,  setResolvedChat]  = useState(null);   // {chat_id, title, username}
+    const [adding,        setAdding]        = useState(false);
+
+    /* --- Filter state --- */
+    const [showAddFilter, setShowAddFilter] = useState(false);
+
+    useEffect(() => { loadData(); }, []);
 
     const loadData = async () => {
         try {
-            const [chatsRes, filtersRes, responsesRes] = await Promise.all([
+            const [chatsRes, filtersRes, responsesRes, statusRes] = await Promise.all([
                 monitoringAPI.getChats(),
                 monitoringAPI.getFilters(),
                 responsesAPI.getTemplates(),
+                authAPI.getStatus(),
             ]);
+            setChats(chatsRes.data.chats || []);
+            setFilters(filtersRes.data.filters || []);
+            setResponses(responsesRes.data.templates || []);
 
-            setChats(chatsRes.data.chats);
-            setFilters(filtersRes.data.filters);
-            setResponses(responsesRes.data.templates);
-        } catch (error) {
-            console.error('Ошибка загрузки данных:', error);
+            // Берём первую активную сессию
+            const sessions = statusRes.data?.sessions || [];
+            const active = sessions.find(s => s.is_active) || sessions[0];
+            if (active) setSessionId(active.id);
+        } catch (err) {
+            console.error('Ошибка загрузки:', err);
         }
     };
 
-    const handleAddChat = async (e) => {
+    /* ── Резолв чата ── */
+    const handleResolve = async (e) => {
         e.preventDefault();
-        const formData = new FormData(e.target);
+        if (!chatQuery.trim()) return;
+        if (!sessionId) {
+            setResolveError('Нет активной Telegram-сессии. Авторизуйтесь в разделе «Авторизация ТГ».');
+            return;
+        }
+        setResolving(true);
+        setResolveError('');
+        setResolvedChat(null);
+        try {
+            const res = await monitoringAPI.resolveChat({ session_id: sessionId, query: chatQuery.trim() });
+            setResolvedChat(res.data);
+        } catch (err) {
+            setResolveError(err.response?.data?.detail || 'Не удалось найти чат');
+        } finally {
+            setResolving(false);
+        }
+    };
 
+    /* ── Добавление чата после резолва ── */
+    const handleConfirmAdd = async () => {
+        if (!resolvedChat || !sessionId) return;
+        setAdding(true);
         try {
             await monitoringAPI.addChat({
-                session_id: 1, // TODO: получать из контекста
-                chat_id: parseInt(formData.get('chat_id')),
-                chat_title: formData.get('chat_title'),
-                chat_username: formData.get('chat_username'),
+                session_id:    sessionId,
+                chat_id:       resolvedChat.chat_id,
+                chat_title:    resolvedChat.title,
+                chat_username: resolvedChat.username,
             });
-
             setShowAddChat(false);
+            setChatQuery('');
+            setResolvedChat(null);
+            setResolveError('');
             loadData();
-        } catch (error) {
-            console.error('Ошибка добавления чата:', error);
+        } catch (err) {
+            setResolveError(err.response?.data?.detail || 'Ошибка при добавлении чата');
+        } finally {
+            setAdding(false);
         }
     };
+
+    const resetAddForm = () => {
+        setShowAddChat(false);
+        setChatQuery('');
+        setResolvedChat(null);
+        setResolveError('');
+    };
+
+    /* ── Действия ── */
+    const handleDeleteChat  = async (id) => { try { await monitoringAPI.removeChat(id); loadData(); } catch(e){} };
+    const handleToggleChat  = async (id) => { try { await monitoringAPI.toggleChat(id); loadData(); } catch(e){} };
 
     const handleAddFilter = async (e) => {
         e.preventDefault();
-        const formData = new FormData(e.target);
-
+        const fd = new FormData(e.target);
         try {
             await monitoringAPI.createFilter({
-                session_id: 1,
-                name: formData.get('name'),
-                filter_type: formData.get('filter_type'),
-                pattern: formData.get('pattern'),
-                case_sensitive: formData.get('case_sensitive') === 'on',
-                chat_ids: [],
+                session_id:     sessionId || 1,
+                name:           fd.get('name'),
+                filter_type:    fd.get('filter_type'),
+                pattern:        fd.get('pattern'),
+                case_sensitive: fd.get('case_sensitive') === 'on',
+                chat_ids:       [],
             });
-
             setShowAddFilter(false);
             loadData();
-        } catch (error) {
-            console.error('Ошибка создания фильтра:', error);
-        }
+        } catch(e) { console.error(e); }
     };
 
-    const handleAddResponse = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-
-        try {
-            await responsesAPI.createTemplate({
-                session_id: 1,
-                name: formData.get('name'),
-                response_type: formData.get('response_type'),
-                template_text: formData.get('template_text'),
-                use_ai: formData.get('use_ai') === 'on',
-                use_rag: formData.get('use_rag') === 'on',
-                filter_ids: [],
-            });
-
-            setShowAddResponse(false);
-            loadData();
-        } catch (error) {
-            console.error('Ошибка создания ответа:', error);
-        }
-    };
-
-    const handleDeleteChat = async (id) => {
-        try {
-            await monitoringAPI.removeChat(id);
-            loadData();
-        } catch (error) {
-            console.error('Ошибка удаления чата:', error);
-        }
-    };
-
-    const handleToggleChat = async (id) => {
-        try {
-            await monitoringAPI.toggleChat(id);
-            loadData();
-        } catch (error) {
-            console.error('Ошибка переключения чата:', error);
-        }
-    };
-
+    /* ─────────────────────────── JSX ─────────────────────────── */
     return (
         <div className="fade-in">
             <div className="page-header">
@@ -118,43 +131,114 @@ export default function MonitoringSettings() {
                 <p className="page-subtitle">Управление чатами, фильтрами и автоответами</p>
             </div>
 
-            {/* Отслеживаемые чаты */}
-            <motion.div
-                className="card mb-4"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-            >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            {/* ── ОТСЛЕЖИВАЕМЫЕ ЧАТЫ ── */}
+            <motion.div className="card mb-4" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                     <h3>
-                        <MessageSquare size={20} style={{ display: 'inline', marginRight: '8px' }} />
+                        <MessageSquare size={20} style={{ display: 'inline', marginRight: 8 }} />
                         Отслеживаемые чаты
                     </h3>
-                    <button className="btn btn-primary" onClick={() => setShowAddChat(!showAddChat)}>
-                        <Plus size={16} style={{ marginRight: '8px' }} />
-                        Добавить чат
+                    <button className="btn btn-primary" onClick={() => showAddChat ? resetAddForm() : setShowAddChat(true)}>
+                        <Plus size={16} style={{ marginRight: 8 }} />
+                        {showAddChat ? 'Отмена' : 'Добавить чат'}
                     </button>
                 </div>
 
+                {/* ── Форма добавления ── */}
+                <AnimatePresence>
                 {showAddChat && (
-                    <form onSubmit={handleAddChat} style={{ marginBottom: '24px', padding: '20px', background: 'var(--bg-darker)', borderRadius: '4px' }}>
-                        <div className="form-row">
-                            <div className="form-group">
-                                <label className="form-label">ID чата</label>
-                                <input type="number" name="chat_id" required />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">Название</label>
-                                <input type="text" name="chat_title" required />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">Username</label>
-                                <input type="text" name="chat_username" />
-                            </div>
-                        </div>
-                        <button type="submit" className="btn btn-success">Добавить</button>
-                    </form>
-                )}
+                    <motion.div
+                        key="add-chat-form"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        style={{ overflow: 'hidden', marginBottom: 24 }}
+                    >
+                        <div style={{ padding: '20px 24px', background: 'var(--bg-darker)', borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Link size={13} /> Вставьте ссылку или @username чата
+                            </p>
 
+                            {/* Input row */}
+                            <form onSubmit={handleResolve} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                                <input
+                                    value={chatQuery}
+                                    onChange={e => { setChatQuery(e.target.value); setResolvedChat(null); setResolveError(''); }}
+                                    placeholder="https://t.me/sochiworld  или  @sochiworld"
+                                    disabled={resolving}
+                                    style={{
+                                        flex: 1,
+                                        background: 'var(--bg-dark)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 8,
+                                        padding: '10px 14px',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.9rem',
+                                    }}
+                                />
+                                <button
+                                    type="submit"
+                                    className="btn btn-primary"
+                                    disabled={resolving || !chatQuery.trim()}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap', padding: '10px 20px' }}
+                                >
+                                    {resolving
+                                        ? <><Loader size={14} className="spin" /> Поиск...</>
+                                        : <><Search size={14} /> Найти</>}
+                                </button>
+                            </form>
+
+                            {/* Error */}
+                            {resolveError && (
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--neon-pink)', fontSize: '0.85rem', marginBottom: 10 }}>
+                                    <XCircle size={15} /> {resolveError}
+                                </motion.div>
+                            )}
+
+                            {/* Preview card */}
+                            {resolvedChat && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    style={{
+                                        background: 'rgba(0,212,255,.05)',
+                                        border: '1px solid rgba(0,212,255,.3)',
+                                        borderRadius: 10,
+                                        padding: '14px 16px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 12,
+                                    }}
+                                >
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                            <CheckCircle size={15} color="var(--neon-cyan)" />
+                                            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{resolvedChat.title}</span>
+                                        </div>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                            {resolvedChat.username || '—'}&nbsp;&nbsp;·&nbsp;&nbsp;ID: {resolvedChat.chat_id}
+                                        </div>
+                                    </div>
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={handleConfirmAdd}
+                                        disabled={adding}
+                                        style={{ display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}
+                                    >
+                                        {adding
+                                            ? <><Loader size={13} className="spin" /> Добавляем...</>
+                                            : <><Plus size={13} /> Добавить</>}
+                                    </button>
+                                </motion.div>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+                </AnimatePresence>
+
+                {/* Таблица */}
                 <div className="table-container">
                     <table>
                         <thead>
@@ -167,23 +251,24 @@ export default function MonitoringSettings() {
                             </tr>
                         </thead>
                         <tbody>
+                            {chats.length === 0 && (
+                                <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px 0' }}>Нет отслеживаемых чатов</td></tr>
+                            )}
                             {chats.map((chat) => (
                                 <tr key={chat.id}>
                                     <td>{chat.chat_title}</td>
                                     <td>{chat.chat_id}</td>
                                     <td>{chat.chat_username || '—'}</td>
                                     <td>
-                                        {chat.is_active ? (
-                                            <span className="badge badge-success">Активен</span>
-                                        ) : (
-                                            <span className="badge badge-danger">Неактивен</span>
-                                        )}
+                                        {chat.is_active
+                                            ? <span className="badge badge-success">Активен</span>
+                                            : <span className="badge badge-danger">Неактивен</span>}
                                     </td>
                                     <td>
                                         <button
                                             className="btn btn-primary"
                                             onClick={() => handleToggleChat(chat.id)}
-                                            style={{ padding: '6px 12px', fontSize: '0.8rem', marginRight: '8px' }}
+                                            style={{ padding: '6px 12px', fontSize: '0.8rem', marginRight: 8 }}
                                         >
                                             {chat.is_active ? 'Выкл' : 'Вкл'}
                                         </button>
@@ -202,27 +287,16 @@ export default function MonitoringSettings() {
                 </div>
             </motion.div>
 
-            {/* Фильтры и автоответы в две колонки */}
+            {/* ── Фильтры ── */}
             <div className="grid grid-2">
-                {/* Фильтры */}
-                <motion.div
-                    className="card"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                        <h3>
-                            <Filter size={20} style={{ display: 'inline', marginRight: '8px' }} />
-                            Фильтры
-                        </h3>
-                        <button className="btn btn-primary" onClick={() => setShowAddFilter(!showAddFilter)}>
-                            <Plus size={16} />
-                        </button>
+                <motion.div className="card" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                        <h3><Filter size={20} style={{ display: 'inline', marginRight: 8 }} />Фильтры</h3>
+                        <button className="btn btn-primary" onClick={() => setShowAddFilter(!showAddFilter)}><Plus size={16} /></button>
                     </div>
 
                     {showAddFilter && (
-                        <form onSubmit={handleAddFilter} style={{ marginBottom: '20px', padding: '16px', background: 'var(--bg-darker)', borderRadius: '4px' }}>
+                        <form onSubmit={handleAddFilter} style={{ marginBottom: 20, padding: 16, background: 'var(--bg-darker)', borderRadius: 4 }}>
                             <div className="form-group">
                                 <label className="form-label">Название</label>
                                 <input type="text" name="name" required />
@@ -239,7 +313,7 @@ export default function MonitoringSettings() {
                                 <input type="text" name="pattern" required />
                             </div>
                             <div className="form-group">
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <input type="checkbox" name="case_sensitive" />
                                     <span>Учитывать регистр</span>
                                 </label>
@@ -248,22 +322,18 @@ export default function MonitoringSettings() {
                         </form>
                     )}
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {filters.map((filter) => (
-                            <div key={filter.id} style={{ padding: '12px', background: 'var(--bg-darker)', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {filters.map((f) => (
+                            <div key={f.id} style={{ padding: 12, background: 'var(--bg-darker)', borderRadius: 4, border: '1px solid var(--border-color)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                                     <div>
-                                        <div style={{ fontWeight: '600', marginBottom: '4px' }}>{filter.name}</div>
+                                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{f.name}</div>
                                         <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                            <span className="badge badge-info">{filter.filter_type}</span>
-                                            <span style={{ marginLeft: '8px' }}>{filter.pattern}</span>
+                                            <span className="badge badge-info">{f.filter_type}</span>
+                                            <span style={{ marginLeft: 8 }}>{f.pattern}</span>
                                         </div>
                                     </div>
-                                    <button
-                                        className="btn btn-danger"
-                                        onClick={() => monitoringAPI.deleteFilter(filter.id).then(loadData)}
-                                        style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                                    >
+                                    <button className="btn btn-danger" onClick={() => monitoringAPI.deleteFilter(f.id).then(loadData)} style={{ padding: '4px 8px', fontSize: '0.75rem' }}>
                                         <Trash2 size={12} />
                                     </button>
                                 </div>
@@ -272,72 +342,23 @@ export default function MonitoringSettings() {
                     </div>
                 </motion.div>
 
-                {/* Автоответы */}
-                <motion.div
-                    className="card"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 }}
-                >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                        <h3>Автоответы</h3>
-                        <button className="btn btn-primary" onClick={() => setShowAddResponse(!showAddResponse)}>
-                            <Plus size={16} />
-                        </button>
-                    </div>
-
-                    {showAddResponse && (
-                        <form onSubmit={handleAddResponse} style={{ marginBottom: '20px', padding: '16px', background: 'var(--bg-darker)', borderRadius: '4px' }}>
-                            <div className="form-group">
-                                <label className="form-label">Название</label>
-                                <input type="text" name="name" required />
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">Тип</label>
-                                <select name="response_type" required>
-                                    <option value="template">Шаблон</option>
-                                    <option value="ai_generated">AI генерация</option>
-                                    <option value="rag">RAG</option>
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">Текст</label>
-                                <textarea name="template_text" rows="3" required></textarea>
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <input type="checkbox" name="use_ai" />
-                                    <span>Использовать AI</span>
-                                </label>
-                            </div>
-                            <div className="form-group">
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <input type="checkbox" name="use_rag" />
-                                    <span>Использовать RAG</span>
-                                </label>
-                            </div>
-                            <button type="submit" className="btn btn-success">Создать</button>
-                        </form>
-                    )}
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {responses.map((response) => (
-                            <div key={response.id} style={{ padding: '12px', background: 'var(--bg-darker)', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                {/* ── Автоответы ── */}
+                <motion.div className="card" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
+                    <h3 style={{ marginBottom: 24 }}>Автоответы</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {responses.map((r) => (
+                            <div key={r.id} style={{ padding: 12, background: 'var(--bg-darker)', borderRadius: 4, border: '1px solid var(--border-color)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                                     <div style={{ flex: 1 }}>
-                                        <div style={{ fontWeight: '600', marginBottom: '4px' }}>{response.name}</div>
-                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                                            <span className="badge badge-info">{response.response_type}</span>
-                                            {response.use_ai && <span className="badge badge-success" style={{ marginLeft: '4px' }}>AI</span>}
-                                            {response.use_rag && <span className="badge badge-success" style={{ marginLeft: '4px' }}>RAG</span>}
+                                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{r.name}</div>
+                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 8 }}>
+                                            <span className="badge badge-info">{r.response_type}</span>
+                                            {r.use_ai  && <span className="badge badge-success" style={{ marginLeft: 4 }}>AI</span>}
+                                            {r.use_rag && <span className="badge badge-success" style={{ marginLeft: 4 }}>RAG</span>}
                                         </div>
-                                        <div style={{ fontSize: '0.9rem' }}>{response.template_text?.substring(0, 100)}...</div>
+                                        <div style={{ fontSize: '0.9rem' }}>{r.template_text?.substring(0, 100)}...</div>
                                     </div>
-                                    <button
-                                        className="btn btn-danger"
-                                        onClick={() => responsesAPI.deleteTemplate(response.id).then(loadData)}
-                                        style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                                    >
+                                    <button className="btn btn-danger" onClick={() => responsesAPI.deleteTemplate(r.id).then(loadData)} style={{ padding: '4px 8px', fontSize: '0.75rem' }}>
                                         <Trash2 size={12} />
                                     </button>
                                 </div>

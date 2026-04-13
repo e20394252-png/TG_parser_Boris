@@ -392,3 +392,19 @@ textarea::placeholder {
         transform: rotate(360deg);
     }
 }
+
+/* Spinning utility — used on lucide-react icons */
+.spin {
+    animation: spin 0.8s linear infinite;
+}
+
+/* Spinner for buttons */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(0, 255, 255, 0.25);
+    border-top-color: var(--neon-cyan);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
