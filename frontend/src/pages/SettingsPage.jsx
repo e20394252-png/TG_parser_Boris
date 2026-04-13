@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Eye, EyeOff, Save, CheckCircle, Download, Upload, Lock } from 'lucide-react';
-import { settingsAPI, loginAPI } from '../utils/api';
+import { Settings, Eye, EyeOff, Save, CheckCircle, Download, Upload, Lock, Users, UserPlus, Trash2 } from 'lucide-react';
+import { settingsAPI, loginAPI, usersAPI } from '../utils/api';
 
 /* ── Конфиг пунктов меню ── */
 export const NAV_ITEMS_CONFIG = [
@@ -73,6 +73,45 @@ export default function SettingsPage() {
         }
     };
 
+    // User management state
+    const [users,       setUsers]       = useState([]);
+    const [newUsername, setNewUsername] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [userError,   setUserError]   = useState('');
+    const [userSaving,  setUserSaving]  = useState(false);
+    const [deletingId,  setDeletingId]  = useState(null);
+
+    const loadUsers = () => usersAPI.list().then(r => setUsers(r.data.users)).catch(() => {});
+
+    const handleCreateUser = async (e) => {
+        e.preventDefault();
+        setUserError('');
+        if (newPassword.length < 8) { setUserError('Пароль — минимум 8 символов'); return; }
+        setUserSaving(true);
+        try {
+            await usersAPI.create({ username: newUsername.trim(), password: newPassword });
+            setNewUsername(''); setNewPassword('');
+            await loadUsers();
+        } catch (err) {
+            setUserError(err.response?.data?.detail || 'Ошибка при создании пользователя');
+        } finally {
+            setUserSaving(false);
+        }
+    };
+
+    const handleDeleteUser = async (uid) => {
+        if (!window.confirm('Удалить пользователя?')) return;
+        setDeletingId(uid);
+        try {
+            await usersAPI.remove(uid);
+            await loadUsers();
+        } catch (err) {
+            alert(err.response?.data?.detail || 'Ошибка удаления');
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
     useEffect(() => {
         settingsAPI.get()
             .then(res => {
@@ -85,6 +124,7 @@ export default function SettingsPage() {
             })
             .catch(() => {})
             .finally(() => setLoading(false));
+        loadUsers();
     }, []);
 
     const handleSave = async (key, newVal) => {
@@ -345,6 +385,74 @@ export default function SettingsPage() {
                         )}
                     </div>
                 </motion.div>
+                {/* ── Пользователи ── */}
+                <motion.div className="card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                    <SectionHeader title="Пользователи" />
+
+                    {/* Список */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+                        {users.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Нет пользователей</p>}
+                        {users.map(u => (
+                            <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-darker)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '10px 14px' }}>
+                                <div>
+                                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{u.username}</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                        {u.last_login ? `Последний вход: ${new Date(u.last_login).toLocaleDateString('ru')}` : 'Ещё не входил'}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleDeleteUser(u.id)}
+                                    disabled={deletingId === u.id}
+                                    title="Удалить"
+                                    style={{ background: 'rgba(255,0,128,.1)', border: '1px solid var(--neon-pink)', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', color: 'var(--neon-pink)', display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.8rem' }}
+                                >
+                                    <Trash2 size={13} /> {deletingId === u.id ? '...' : 'Удалить'}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Создать нового */}
+                    <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: 12, fontWeight: 600 }}>
+                            <UserPlus size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+                            Добавить пользователя
+                        </p>
+                        {userError && (
+                            <div style={{ background: 'rgba(255,0,128,.1)', border: '1px solid var(--neon-pink)', borderRadius: 8, padding: '8px 12px', color: 'var(--neon-pink)', fontSize: '0.82rem', marginBottom: 10 }}>
+                                {userError}
+                            </div>
+                        )}
+                        <form onSubmit={handleCreateUser} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                            <div style={{ flex: 1, minWidth: 140 }}>
+                                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 5 }}>Логин</label>
+                                <input
+                                    value={newUsername}
+                                    onChange={e => setNewUsername(e.target.value)}
+                                    placeholder="username"
+                                    required
+                                    style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '9px 12px', color: 'var(--text-primary)', fontSize: '0.88rem' }}
+                                />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 140 }}>
+                                <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 5 }}>Пароль (мин. 8)</label>
+                                <input
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={e => setNewPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                    required
+                                    style={{ width: '100%', background: 'var(--bg-dark)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '9px 12px', color: 'var(--text-primary)', fontSize: '0.88rem' }}
+                                />
+                            </div>
+                            <button type="submit" className="btn btn-primary" disabled={userSaving}
+                                style={{ display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap', padding: '9px 18px' }}>
+                                {userSaving ? <><div className="spinner" style={{ width: 13, height: 13 }} /> Создаём...</> : <><UserPlus size={14} /> Создать</>}
+                            </button>
+                        </form>
+                    </div>
+                </motion.div>
+
                 {/* ── Смена пароля ── */}
                 <motion.div className="card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
                     <SectionHeader title="Смена пароля" />

@@ -303,3 +303,68 @@ async def change_password(
 
     logger.info(f"✅ Password changed for user_id={user_id}")
     return {"success": True, "message": "Пароль успешно изменён"}
+
+
+# ──────────────── User Management ────────────────
+
+@router.get("/users")
+async def list_users(current_user: dict = Depends(get_current_user)):
+    """Список всех пользователей (только для авторизованных)."""
+    from database.database import db
+    rows = await db.fetch(
+        "SELECT id, username, last_login, created_at FROM users ORDER BY id"
+    )
+    return {"users": [dict(r) for r in rows]}
+
+
+class CreateUserRequest(BaseModel):
+    username: str
+    password: str
+
+
+@router.post("/users", status_code=201)
+async def create_user(
+    data: CreateUserRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Создать нового пользователя (доступно любому авторизованному)."""
+    from database.database import db
+    import bcrypt as _bcrypt
+
+    if len(data.username.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Логин слишком короткий")
+    if len(data.password) < 8:
+        raise HTTPException(status_code=400, detail="Пароль должен быть не менее 8 символов")
+
+    hashed = _bcrypt.hashpw(data.password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
+    try:
+        user_id = await db.fetchval(
+            "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id",
+            data.username.strip(), hashed
+        )
+    except Exception:
+        raise HTTPException(status_code=409, detail="Пользователь с таким логином уже существует")
+
+    logger.info(f"✅ Created user '{data.username}' (id={user_id}) by {current_user.get('username')}")
+    return {"id": user_id, "username": data.username.strip()}
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Удалить пользователя. Нельзя удалить себя."""
+    from database.database import db
+
+    me = int(current_user["sub"])
+    if user_id == me:
+        raise HTTPException(status_code=400, detail="Нельзя удалить самого себя")
+
+    result = await db.execute("DELETE FROM users WHERE id = $1", user_id)
+    if result == "DELETE 0":
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    logger.info(f"🗑 Deleted user_id={user_id} by {current_user.get('username')}")
+    return {"success": True}
+

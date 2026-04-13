@@ -45,6 +45,13 @@ export const loginAPI = {
     login:           (data) => api.post('/login/password', data),
 };
 
+// User management
+export const usersAPI = {
+    list:   ()          => api.get('/login/users'),
+    create: (data)      => api.post('/login/users', data),
+    remove: (userId)    => api.delete(`/login/users/${userId}`),
+};
+
 // Monitoring
 export const monitoringAPI = {
     getChats: (sessionId) => api.get('/monitoring/chats', { params: { session_id: sessionId } }),
