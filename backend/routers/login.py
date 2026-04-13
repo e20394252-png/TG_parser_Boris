@@ -217,3 +217,89 @@ async def get_login_config():
         "bot_name": bot_name,
         "auth_enabled": bool(BOT_TOKEN),
     }
+
+
+# ──────────────── Setup & Password Management ────────────────
+
+@router.get("/setup-needed")
+async def setup_needed():
+    """Проверяет, нужна ли первоначальная настройка (нет ни одного пользователя в БД)."""
+    from database.database import db
+    count = await db.fetchval("SELECT COUNT(*) FROM users")
+    return {"needed": count == 0}
+
+
+class SetupRequest(BaseModel):
+    username: str
+    password: str
+
+
+@router.post("/setup", response_model=LoginResponse)
+async def initial_setup(data: SetupRequest):
+    """
+    Создаёт первого admin-пользователя.
+    Работает ТОЛЬКО если в БД нет ни одного пользователя.
+    """
+    from database.database import db
+    import bcrypt as _bcrypt
+
+    count = await db.fetchval("SELECT COUNT(*) FROM users")
+    if count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Система уже настроена. Используйте обычный вход."
+        )
+
+    if len(data.username.strip()) < 2:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Логин слишком короткий")
+    if len(data.password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пароль должен быть не менее 8 символов")
+
+    hashed = _bcrypt.hashpw(data.password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
+    user_id = await db.fetchval(
+        "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id",
+        data.username.strip(), hashed
+    )
+
+    token = create_jwt(user_id, data.username, data.username)
+    user_info = {
+        "id": user_id,
+        "first_name": data.username,
+        "last_name": None,
+        "username": data.username,
+        "photo_url": None,
+    }
+    logger.info(f"✅ Initial setup: created admin '{data.username}' (id={user_id})")
+    return LoginResponse(token=token, user=user_info)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+async def change_password(
+    data: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Смена пароля для текущего авторизованного пользователя."""
+    from database.database import db
+    import bcrypt as _bcrypt
+
+    user_id = int(current_user["sub"])
+    row = await db.fetchrow("SELECT password_hash FROM users WHERE id = $1", user_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
+
+    if not _bcrypt.checkpw(data.current_password.encode("utf-8"), row["password_hash"].encode("utf-8")):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Неверный текущий пароль")
+
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Новый пароль должен быть не менее 8 символов")
+
+    new_hash = _bcrypt.hashpw(data.new_password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
+    await db.execute("UPDATE users SET password_hash = $1 WHERE id = $2", new_hash, user_id)
+
+    logger.info(f"✅ Password changed for user_id={user_id}")
+    return {"success": True, "message": "Пароль успешно изменён"}

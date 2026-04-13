@@ -29,12 +29,20 @@ api.interceptors.response.use(
     }
 );
 
-// Auth
+// Auth (Telegram session management)
 export const authAPI = {
     startTelegramAuth: (data) => api.post('/auth/telegram/start', data),
     submitCode: (data) => api.post('/auth/telegram/code', data),
     getStatus: () => api.get('/auth/status'),
     logout: (sessionId) => api.delete(`/auth/telegram/${sessionId}`),
+};
+
+// Login / password management
+export const loginAPI = {
+    setupNeeded:     ()     => api.get('/login/setup-needed'),
+    setup:           (data) => api.post('/login/setup', data),
+    changePassword:  (data) => api.post('/login/change-password', data),
+    login:           (data) => api.post('/login/password', data),
 };
 
 // Monitoring

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Settings, Eye, Save, CheckCircle, Download, Upload } from 'lucide-react';
-import { settingsAPI } from '../utils/api';
+import { Settings, Eye, EyeOff, Save, CheckCircle, Download, Upload, Lock } from 'lucide-react';
+import { settingsAPI, loginAPI } from '../utils/api';
 
 /* ── Конфиг пунктов меню ── */
 export const NAV_ITEMS_CONFIG = [
@@ -43,6 +43,35 @@ export default function SettingsPage() {
     const [menuSaving,  setMenuSaving]  = useState(false);
     const [menuSaved,   setMenuSaved]   = useState(false);
     const importRef = useRef();
+
+    // Change password state
+    const [pwCurrent, setPwCurrent] = useState('');
+    const [pwNew,     setPwNew]     = useState('');
+    const [pwConfirm, setPwConfirm] = useState('');
+    const [pwShowCur, setPwShowCur] = useState(false);
+    const [pwShowNew, setPwShowNew] = useState(false);
+    const [pwSaving,  setPwSaving]  = useState(false);
+    const [pwError,   setPwError]   = useState('');
+    const [pwOk,      setPwOk]      = useState(false);
+
+    const handleChangePassword = async (e) => {
+        e.preventDefault();
+        setPwError('');
+        setPwOk(false);
+        if (pwNew !== pwConfirm) { setPwError('Пароли не совпадают'); return; }
+        if (pwNew.length < 8)    { setPwError('Новый пароль — минимум 8 символов'); return; }
+        setPwSaving(true);
+        try {
+            await loginAPI.changePassword({ current_password: pwCurrent, new_password: pwNew });
+            setPwOk(true);
+            setPwCurrent(''); setPwNew(''); setPwConfirm('');
+            setTimeout(() => setPwOk(false), 3000);
+        } catch (err) {
+            setPwError(err.response?.data?.detail || 'Ошибка при смене пароля');
+        } finally {
+            setPwSaving(false);
+        }
+    };
 
     useEffect(() => {
         settingsAPI.get()
@@ -315,6 +344,59 @@ export default function SettingsPage() {
                             </motion.span>
                         )}
                     </div>
+                </motion.div>
+                {/* ── Смена пароля ── */}
+                <motion.div className="card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+                    <SectionHeader title="Смена пароля" />
+                    <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {pwError && (
+                            <div style={{ background: 'rgba(255,0,128,.1)', border: '1px solid var(--neon-pink)', borderRadius: 8, padding: '10px 14px', color: 'var(--neon-pink)', fontSize: '0.85rem' }}>
+                                {pwError}
+                            </div>
+                        )}
+                        {pwOk && (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                style={{ background: 'rgba(0,255,128,.1)', border: '1px solid var(--neon-green)', borderRadius: 8, padding: '10px 14px', color: 'var(--neon-green)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <CheckCircle size={15} /> Пароль успешно изменён
+                            </motion.div>
+                        )}
+
+                        {[{
+                            label: 'Текущий пароль', val: pwCurrent, set: setPwCurrent, show: pwShowCur, setShow: setPwShowCur,
+                        }, {
+                            label: 'Новый пароль', val: pwNew, set: setPwNew, show: pwShowNew, setShow: setPwShowNew,
+                        }, {
+                            label: 'Подтверждение нового пароля', val: pwConfirm, set: setPwConfirm, show: pwShowNew, setShow: setPwShowNew,
+                        }].map(({ label, val, set, show, setShow }) => (
+                            <div key={label}>
+                                <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600 }}>{label}</label>
+                                <div style={{ position: 'relative' }}>
+                                    <Lock size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                    <input
+                                        type={show ? 'text' : 'password'}
+                                        value={val}
+                                        onChange={e => set(e.target.value)}
+                                        required
+                                        placeholder="••••••••"
+                                        style={{ width: '100%', background: 'var(--bg-darker)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '10px 36px 10px 36px', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                                    />
+                                    <button type="button" onClick={() => setShow(v => !v)}
+                                        style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'flex' }}>
+                                        {show ? <EyeOff size={15}/> : <Eye size={15}/>}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                            <button type="submit" className="btn btn-primary" disabled={pwSaving}
+                                style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                {pwSaving
+                                    ? <><div className="spinner" style={{ width: 14, height: 14 }} /> Сохраняем...</>
+                                    : <><Lock size={14} /> Сменить пароль</>}
+                            </button>
+                        </div>
+                    </form>
                 </motion.div>
 
             </div>

@@ -4,9 +4,10 @@ import { Activity, MessageSquare, Settings as SettingsIcon, Brain, BarChart3, Se
 import './App.css';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { settingsAPI } from './utils/api';
+import { settingsAPI, loginAPI } from './utils/api';
 
 import LoginPage from './pages/LoginPage';
+import SetupPage from './pages/SetupPage';
 import Dashboard from './pages/Dashboard';
 import TelegramAuth from './pages/TelegramAuth';
 import MonitoringSettings from './pages/MonitoringSettings';
@@ -15,7 +16,7 @@ import MessageHistory from './pages/MessageHistory';
 import ConversationSearch from './pages/ConversationSearch';
 import Broadcast from './pages/Broadcast';
 import Guide from './pages/Guide';
-import SettingsPage, { NAV_ITEMS_CONFIG, DEFAULT_MENU_VISIBILITY } from './pages/SettingsPage';
+import SettingsPage, { DEFAULT_MENU_VISIBILITY } from './pages/SettingsPage';
 
 import MCPStatusIndicator from './components/MCPStatusIndicator';
 import MCPStatusModal from './components/MCPStatusModal';
@@ -38,7 +39,6 @@ function AppContent() {
     const [mcpModalOpen, setMcpModalOpen] = useState(false);
     const [menuVisibility, setMenuVisibility] = useState(DEFAULT_MENU_VISIBILITY);
 
-    // Загружаем настройки видимости меню
     useEffect(() => {
         settingsAPI.get()
             .then(res => {
@@ -55,7 +55,6 @@ function AppContent() {
 
     return (
         <div className="app">
-            {/* Sidebar */}
             <aside className="sidebar">
                 <div className="sidebar-header">
                     <div className="logo">
@@ -76,51 +75,32 @@ function AppContent() {
                     ))}
                 </nav>
 
-                {/* Профиль пользователя */}
-                <div style={{
-                    padding: '12px 16px',
-                    borderTop: '1px solid var(--border-color)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                }}>
+                <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 10 }}>
                     {user?.photo_url && (
                         <img src={user.photo_url} alt="" style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0 }} />
                     )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {user?.first_name
-                                ? `${user.first_name} ${user.last_name || ''}`
-                                : (user?.username || 'Пользователь')}
+                            {user?.first_name ? `${user.first_name} ${user.last_name || ''}` : (user?.username || 'Пользователь')}
                         </div>
                         {user?.username && user?.first_name && (
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>@{user.username}</div>
                         )}
                     </div>
-                    <button
-                        onClick={logout}
-                        title="Выйти"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex' }}
-                    >
+                    <button onClick={logout} title="Выйти" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex' }}>
                         <LogOut size={16} />
                     </button>
                 </div>
 
                 <div className="sidebar-footer">
                     <MCPStatusIndicator onDetailsClick={() => setMcpModalOpen(true)} />
-
-                    <Link
-                        to="/settings"
-                        className={`settings-button ${isActive('/settings') ? 'active' : ''}`}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
-                    >
+                    <Link to="/settings" className={`settings-button ${isActive('/settings') ? 'active' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
                         <SettingsIcon size={20} />
                         <span>Настройки</span>
                     </Link>
                 </div>
             </aside>
 
-            {/* Main Content */}
             <main className="main-content">
                 <Routes>
                     {ALL_NAV.map(item => (
@@ -135,6 +115,23 @@ function AppContent() {
     );
 }
 
+function AuthGate() {
+    const { isAuthenticated } = useAuth();
+    const [setupNeeded, setSetupNeeded] = useState(null); // null = checking
+
+    useEffect(() => {
+        if (isAuthenticated) return;
+        loginAPI.setupNeeded()
+            .then(res => setSetupNeeded(res.data.needed))
+            .catch(() => setSetupNeeded(false));
+    }, [isAuthenticated]);
+
+    if (isAuthenticated)      return <AppContent />;
+    if (setupNeeded === null)  return null; // моментальная проверка
+    if (setupNeeded)           return <SetupPage />;
+    return <LoginPage />;
+}
+
 function App() {
     return (
         <AuthProvider>
@@ -143,12 +140,6 @@ function App() {
             </Router>
         </AuthProvider>
     );
-}
-
-function AuthGate() {
-    const { isAuthenticated } = useAuth();
-    if (!isAuthenticated) return <LoginPage />;
-    return <AppContent />;
 }
 
 export default App;

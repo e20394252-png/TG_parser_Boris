@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telegram Broadcast — Präsentation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+  :root {
+    --cyan:    #00d4ff;
+    --magenta: #ff00ff;
+    --green:   #00ff80;
+    --pink:    #ff0080;
+    --purple:  #8b5cf6;
+    --yellow:  #f0c040;
+    --bg:      #111c2e;
+    --card:    #1a2840;
+    --border:  rgba(255,255,255,0.13);
+    --muted:   rgba(255,255,255,0.55);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: #fff;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── Slides Container ── */
+  #slides {
+    width: 100%;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 80px;
+    opacity: 0;
+    transform: translateX(80px);
+    transition: opacity .5s ease, transform .5s ease;
+    pointer-events: none;
+  }
+  .slide.active {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: all;
+  }
+  .slide.prev {
+    opacity: 0;
+    transform: translateX(-80px);
+  }
+
+  /* ── Navigation ── */
+  #nav {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 100;
+    background: rgba(13,20,33,0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 40px;
+    padding: 12px 24px;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    cursor: pointer;
+    transition: all .3s;
+  }
+  .dot.active { background: var(--cyan); box-shadow: 0 0 10px var(--cyan); width: 24px; border-radius: 4px; }
+  #nav button {
+    background: none; border: none; color: var(--cyan);
+    cursor: pointer; font-size: 1.2rem; padding: 0 4px;
+    transition: transform .2s;
+  }
+  #nav button:hover { transform: scale(1.3); }
+  #slide-counter { font-size: 0.8rem; color: var(--muted); min-width: 40px; text-align: center; }
+
+  /* ── Ambient glow ── */
+  .glow-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.15;
+    pointer-events: none;
+  }
+
+  /* ── Typography ── */
+  .tag {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--cyan);
+    border: 1px solid rgba(0,212,255,0.3);
+    padding: 5px 14px; border-radius: 20px;
+    background: rgba(0,212,255,0.08);
+    margin-bottom: 20px;
+  }
+  h1 { font-size: clamp(2.4rem, 5vw, 4rem); font-weight: 900; line-height: 1; text-align: center; }
+  h2 { font-size: clamp(1.8rem, 3vw, 2.8rem); font-weight: 800; line-height: 1.1; }
+  .gradient-text {
+    background: linear-gradient(135deg, var(--cyan), var(--magenta));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle { color: var(--muted); font-size: 1.1rem; margin-top: 16px; text-align: center; max-width: 640px; line-height: 1.7; }
+
+  /* ── Cards / Grids ── */
+  .cards { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-top: 36px; width: 100%; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 28px;
+    flex: 1; min-width: 200px; max-width: 280px;
+    position: relative; overflow: hidden;
+  }
+  .card::before {
+    content: ''; position: absolute; top:0; left:0; width:100%; height:3px;
+    background: var(--accent, linear-gradient(90deg,var(--cyan),var(--magenta)));
+  }
+  .card-icon { font-size: 2rem; margin-bottom: 12px; }
+  .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; color: #fff; }
+  .card p { font-size: 0.85rem; color: var(--muted); line-height: 1.6; }
+
+  /* ── Feature list ── */
+  .feature-list { display: flex; flex-direction: column; gap: 16px; margin-top: 28px; width: 100%; max-width: 800px; }
+  .feature-item {
+    display: flex; align-items: flex-start; gap: 16px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 22px;
+  }
+  .feature-icon { font-size: 1.5rem; flex-shrink: 0; margin-top: 2px; }
+  .feature-item h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
+  .feature-item p { font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
+
+  /* ── Code block ── */
+  .code-block {
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-size: 0.9rem;
+    line-height: 1.8;
+    margin-top: 24px;
+    width: 100%; max-width: 600px;
+  }
+  .code-block .kw { color: var(--cyan); }
+  .code-block .str { color: var(--green); }
+  .code-block .cm { color: var(--muted); font-style: italic; }
+
+  /* ── Table ── */
+  .delay-table {
+    width: 100%; max-width: 640px; border-collapse: collapse;
+    margin-top: 28px; font-size: 0.95rem;
+  }
+  .delay-table th {
+    padding: 12px 20px; text-align: left;
+    font-size: 0.75rem; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--cyan); border-bottom: 1px solid rgba(0,212,255,0.3);
+  }
+  .delay-table td { padding: 14px 20px; border-bottom: 1px solid var(--border); }
+  .delay-table tr:last-child td { border-bottom: none; }
+
+  /* ── Stat row ── */
+  .stat-row { display: flex; gap: 32px; margin-top: 36px; justify-content: center; flex-wrap: wrap; }
+  .stat { text-align: center; }
+  .stat-num {
+    font-size: 3rem; font-weight: 900;
+    background: linear-gradient(135deg, var(--cyan), var(--magenta));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .stat-label { font-size: 0.82rem; color: var(--muted); margin-top: 4px; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* ── Format row ── */
+  .fmt-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-top: 28px; }
+  .fmt-chip {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 20px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    min-width: 90px;
+  }
+  .fmt-chip .before { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--cyan); }
+  .fmt-chip .after { font-size: 0.85rem; color: #fff; }
+
+  /* ── Flow diagram ── */
+  .flow {
+    display: flex; align-items: center; gap: 0;
+    margin-top: 32px; flex-wrap: wrap; justify-content: center;
+  }
+  .flow-step {
+    text-align: center; width: 130px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 12px;
+  }
+  .flow-arrow { color: var(--cyan); font-size: 1.4rem; margin: 0 6px; }
+  .flow-step .icon { font-size: 1.6rem; margin-bottom: 6px; }
+  .flow-step .label { font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
+
+  /* ── Badge pill ── */
+  .pill {
+    display: inline-block; padding: 4px 12px; border-radius: 20px;
+    font-size: 0.75rem; font-weight: 700;
+  }
+  .pill-green  { background: rgba(0,255,128,.15); color: var(--green);  border: 1px solid var(--green); }
+  .pill-yellow { background: rgba(240,192,64,.15); color: var(--yellow); border: 1px solid var(--yellow); }
+  .pill-red    { background: rgba(255,0,128,.15);  color: var(--pink);  border: 1px solid var(--pink); }
+
+  /* ── Keyboard shortcut hint ── */
+  #hint {
+    position: fixed; top: 24px; right: 32px;
+    font-size: 0.72rem; color: var(--muted);
+    background: rgba(13,20,33,0.8); backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 14px;
+  }
+
+  /* ── Progress bar ── */
+  #progress {
+    position: fixed; top: 0; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--cyan), var(--magenta));
+    transition: width .4s ease;
+    z-index: 200;
+  }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<div id="slides">
+
+  <!-- ─── 1. COVER ─── -->
+  <div class="slide active" id="s1">
+    <div class="glow-orb" style="width:500px;height:500px;background:var(--cyan);top:-100px;right:-100px;"></div>
+    <div class="glow-orb" style="width:400px;height:400px;background:var(--magenta);bottom:-100px;left:-100px;"></div>
+    <div class="tag">📨 Telegram Parser — Модуль Рассылки</div>
+    <h1><span class="gradient-text">Массовая рассылка</span><br>через Telegram</h1>
+    <p class="subtitle">Автоматизированная отправка персональных сообщений через вашу живую Telegram-сессию — без ботов, без API-ограничений.</p>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Получателей</div></div>
+      <div class="stat"><div class="stat-num">3–60с</div><div class="stat-label">Задержка</div></div>
+      <div class="stat"><div class="stat-num">100%</div><div class="stat-label">Доставка</div></div>
+    </div>
+  </div>
+
+  <!-- ─── 2. PROBLEM ─── -->
+  <div class="slide" id="s2">
+    <div class="glow-orb" style="width:400px;height:400px;background:var(--pink);top:-50px;left:-50px;"></div>
+    <div class="tag">😤 Проблема</div>
+    <h2>Ручная рассылка — <span class="gradient-text">это боль</span></h2>
+    <p class="subtitle">Отправлять сотни сообщений вручную — медленно, скучно и легко ошибиться</p>
+    <div class="cards" style="margin-top:32px;">
+      <div class="card" style="--accent: var(--pink)">
+        <div class="card-icon">⏰</div>
+        <h3>Время</h3>
+        <p>100 сообщений вручную = 1–2 часа монотонной работы. Каждый день.</p>
+      </div>
+      <div class="card" style="--accent: var(--pink)">
+        <div class="card-icon">❌</div>
+        <h3>Ошибки</h3>
+        <p>Пропущенные получатели, неправильный текст, забытые контакты.</p>
+      </div>
+      <div class="card" style="--accent: var(--pink)">
+        <div class="card-icon">🚫</div>
+        <h3>Масштаб</h3>
+        <p>Вручную легко охватить 10 человек. А 500? А ежедневно?</p>
+      </div>
+      <div class="card" style="--accent: var(--pink)">
+        <div class="card-icon">📊</div>
+        <h3>Аналитика</h3>
+        <p>Не видно кому дошло, кто получил ошибку, какой процент доставки.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── 3. SOLUTION ─── -->
+  <div class="slide" id="s3">
+    <div class="glow-orb" style="width:500px;height:500px;background:var(--cyan);bottom:-100px;right:-50px;"></div>
+    <div class="tag">✅ Решение</div>
+    <h2><span class="gradient-text">Broadcast Module</span></h2>
+    <p class="subtitle">Один раз введите текст и список — система сама разошлёт каждому, дождётся паузы и сохранит результат</p>
+    <div class="flow" style="margin-top:40px;">
+      <div class="flow-step">
+        <div class="icon">✍️</div>
+        <div class="label">Напишите текст с форматированием</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="icon">👥</div>
+        <div class="label">Вставьте список никнеймов</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="icon">⏱️</div>
+        <div class="label">Задайте задержку</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="icon">🚀</div>
+        <div class="label">Запустите рассылку</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="icon">📈</div>
+        <div class="label">Смотрите результаты</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── 4. FEATURES ─── -->
+  <div class="slide" id="s4">
+    <div class="glow-orb" style="width:350px;height:350px;background:var(--purple);top:-50px;right:0;"></div>
+    <div class="tag">⚡ Возможности</div>
+    <h2>Что умеет <span class="gradient-text">рассылка</span></h2>
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-icon">🔢</div>
+        <div>
+          <h4>Умный парсинг получателей</h4>
+          <p>Принимает @username, username без @, t.me/username и https://t.me/username — любой формат, через запятую или с новой строки</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🛡️</div>
+        <div>
+          <h4>Защита от бана — настраиваемая задержка</h4>
+          <p>Слайдер от 3 до 60 секунд между отправками. С таблицей рекомендаций прямо в интерфейсе.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📋</div>
+        <div>
+          <h4>История и аналитика в реальном времени</h4>
+          <p>Каждая задача сохраняется: статус (✓ доставлено / ✗ ошибка), прогресс-бар, отчёт по каждому получателю</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🗑️</div>
+        <div>
+          <h4>Управление историей</h4>
+          <p>Удаление отдельных задач одним кликом или очистка всей истории</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── 5. FORMATTING ─── -->
+  <div class="slide" id="s5">
+    <div class="glow-orb" style="width:400px;height:400px;background:var(--magenta);bottom:-80px;left:-80px;"></div>
+    <div class="tag">✨ Форматирование</div>
+    <h2>Telegram <span class="gradient-text">Markdown</span> прямо в редакторе</h2>
+    <p class="subtitle">Тулбар над полем текста — выделите слово и нажмите кнопку. Поддерживается встроенное форматирование Telegram.</p>
+    <div class="fmt-row">
+      <div class="fmt-chip">
+        <div class="before">*текст*</div>
+        <div class="after" style="font-weight:800;">Жирный</div>
+      </div>
+      <div class="fmt-chip">
+        <div class="before">_текст_</div>
+        <div class="after" style="font-style:italic;">Курсив</div>
+      </div>
+      <div class="fmt-chip">
+        <div class="before">__текст__</div>
+        <div class="after" style="text-decoration:underline;">Подчёркнутый</div>
+      </div>
+      <div class="fmt-chip">
+        <div class="before">~текст~</div>
+        <div class="after" style="text-decoration:line-through;">Зачёркнутый</div>
+      </div>
+      <div class="fmt-chip">
+        <div class="before">`код`</div>
+        <div class="after" style="font-family:monospace;">Моноширинный</div>
+      </div>
+      <div class="fmt-chip">
+        <div class="before">||текст||</div>
+        <div class="after" style="background:#333;border-radius:4px;padding:0 4px;">Спойлер</div>
+      </div>
+    </div>
+    <div class="code-block" style="max-width:500px;">
+      <span class="cm"># Пример форматированного сообщения:</span><br>
+      <span class="kw">*Привет!</span> Это <span class="kw">важное</span> сообщение*<br>
+      _У нас появилось новое предложение_<br>
+      ~Старая цена: 5000₽~ → <span class="str">*4000₽*</span><br>
+      Подробнее: `t.me/channel`
+    </div>
+  </div>
+
+  <!-- ─── 6. SAFETY ─── -->
+  <div class="slide" id="s6">
+    <div class="glow-orb" style="width:450px;height:450px;background:var(--green);top:-100px;right:-100px;opacity:0.1;"></div>
+    <div class="tag">🛡️ Безопасность</div>
+    <h2>Умная защита от <span class="gradient-text">банов</span></h2>
+    <p class="subtitle">Telegram отслеживает подозрительную активность. Задержка между сообщениями — ключевой параметр безопасности.</p>
+    <table class="delay-table">
+      <thead>
+        <tr>
+          <th>Аудитория</th>
+          <th>Задержка</th>
+          <th>Риск</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Знакомые / друзья / коллеги</td>
+          <td style="font-weight:700; color: var(--green);">5–10 сек</td>
+          <td><span class="pill pill-green">Низкий</span></td>
+        </tr>
+        <tr>
+          <td>Незнакомые пользователи</td>
+          <td style="font-weight:700; color: var(--yellow);">10–30 сек</td>
+          <td><span class="pill pill-yellow">Средний</span></td>
+        </tr>
+        <tr>
+          <td>Большой список (100+ чел.)</td>
+          <td style="font-weight:700; color: var(--pink);">30–60 сек</td>
+          <td><span class="pill pill-red">Требует осторожности</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin-top:24px; color: var(--muted); font-size:0.85rem; max-width:600px; text-align:center; line-height:1.7;">
+      ⚠️ Система работает через живую Telegram-сессию (не бот), поэтому ведёт себя как обычный пользователь. Разумные задержки делают рассылку неотличимой от ручной.
+    </p>
+  </div>
+
+  <!-- ─── 7. ANALYTICS ─── -->
+  <div class="slide" id="s7">
+    <div class="glow-orb" style="width:400px;height:400px;background:var(--cyan);bottom:-50px;left:-50px;"></div>
+    <div class="tag">📊 Аналитика</div>
+    <h2>Полный контроль над <span class="gradient-text">результатами</span></h2>
+    <p class="subtitle">Каждая рассылка сохраняется в историю с детальным отчётом по каждому получателю</p>
+    <div class="cards" style="margin-top:28px;">
+      <div class="card">
+        <div class="card-icon">✅</div>
+        <h3>Доставка в реальном времени</h3>
+        <p>Прогресс-бар обновляется на лету. Видно сколько отправлено и сколько осталось.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📋</div>
+        <h3>Отчёт по каждому</h3>
+        <p>Раскрывающийся список показывает статус ✓/✗ и текст ошибки для каждого получателя.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📅</div>
+        <h3>История задач</h3>
+        <p>Все прошлые рассылки хранятся с датой, статусом и счётчиком. Удаление одним кликом.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🏠</div>
+        <h3>Дашборд</h3>
+        <p>На главной странице — счётчик разосланных сообщений за сегодня в режиме реального времени.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── 8. TECHNICAL ─── -->
+  <div class="slide" id="s8">
+    <div class="glow-orb" style="width:450px;height:450px;background:var(--purple);top:-80px;left:-80px;"></div>
+    <div class="tag">⚙️ Технически</div>
+    <h2>Как это <span class="gradient-text">работает</span></h2>
+    <div class="feature-list" style="max-width:750px;">
+      <div class="feature-item">
+        <div class="feature-icon">🔐</div>
+        <div>
+          <h4>Личная Telegram-сессия</h4>
+          <p>Используется ваша авторизованная MTProto-сессия через Telethon. Никаких API-ботов — сообщения приходят от вашего аккаунта.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔄</div>
+        <div>
+          <h4>Фоновая задача (BackgroundTasks)</h4>
+          <p>Рассылка запускается асинхронно — интерфейс не блокируется, статус обновляется по polling каждые 4 секунды.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🗃️</div>
+        <div>
+          <h4>PostgreSQL + изоляция по аккаунту</h4>
+          <p>Каждый пользователь системы видит только свои рассылки. Результаты хранятся в таблицах broadcast_tasks и broadcast_results.</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔗</div>
+        <div>
+          <h4>REST API с JWT-авторизацией</h4>
+          <p>POST /broadcast/send, GET /broadcast/history, DELETE /broadcast/{id} — все эндпоинты защищены токеном.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── 9. CTA ─── -->
+  <div class="slide" id="s9">
+    <div class="glow-orb" style="width:600px;height:600px;background:var(--cyan);top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.08;"></div>
+    <div class="glow-orb" style="width:400px;height:400px;background:var(--magenta);top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.08;"></div>
+    <div class="tag">🚀 Итог</div>
+    <h1><span class="gradient-text">Рассылайте умно,</span><br>не рискуйте</h1>
+    <p class="subtitle">Telegram Broadcast — это самый эффективный способ охватить сотни людей через Telegram без риска блокировки, с полной аналитикой и форматированием.</p>
+    <div class="stat-row" style="margin-top:40px;">
+      <div class="stat"><div class="stat-num">📩</div><div class="stat-label">Любой формат ввода</div></div>
+      <div class="stat"><div class="stat-num">🎨</div><div class="stat-label">Markdown-форматирование</div></div>
+      <div class="stat"><div class="stat-num">🛡️</div><div class="stat-label">Защита от бана</div></div>
+      <div class="stat"><div class="stat-num">📊</div><div class="stat-label">Live-аналитика</div></div>
+    </div>
+  </div>
+
+</div><!-- /slides -->
+
+<div id="nav">
+  <button onclick="prev()">‹</button>
+  <div id="dots"></div>
+  <span id="slide-counter">1 / 9</span>
+  <button onclick="next()">›</button>
+</div>
+
+<div id="hint">← → Space для навигации · F для полного экрана</div>
+
+<script>
+  const total = 9;
+  let cur = 0;
+
+  const slides = document.querySelectorAll('.slide');
+  const dotsEl = document.getElementById('dots');
+  const counter = document.getElementById('slide-counter');
+  const progress = document.getElementById('progress');
+
+  // Build dots
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.onclick = () => goTo(i);
+    dotsEl.appendChild(d);
+  }
+
+  function goTo(n) {
+    slides[cur].classList.remove('active');
+    slides[cur].classList.add('prev');
+    setTimeout(() => slides[cur].classList.remove('prev'), 500);
+    cur = (n + total) % total;
+    slides[cur].classList.add('active');
+    document.querySelectorAll('.dot').forEach((d,i) => d.classList.toggle('active', i === cur));
+    counter.textContent = `${cur+1} / ${total}`;
+    progress.style.width = `${((cur+1)/total)*100}%`;
+  }
+
+  function next() { goTo(cur + 1); }
+  function prev() { goTo(cur - 1); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); prev(); }
+    if (e.key === 'f' || e.key === 'F') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+
+  // Touch swipe
+  let tx = 0;
+  document.addEventListener('touchstart', e => tx = e.touches[0].clientX);
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - tx;
+    if (dx < -50) next();
+    if (dx > 50)  prev();
+  });
+
+  // Initial progress
+  progress.style.width = `${(1/total)*100}%`;
+</script>
+</body>
+</html>
