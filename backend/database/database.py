@@ -25,6 +25,24 @@ class Database:
             
             # Выполняем инициализацию таблиц
             await self.init_database()
+            # Применяем миграции (идемпотентно)
+            await self.run_migrations()
+    
+    async def run_migrations(self):
+        """Применяет миграции схемы (идемпотентно — безопасно запускать повторно)."""
+        migrations = [
+            # v1: добавляем роль пользователя
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'",
+            # Первый пользователь в системе получает роль admin (только если ещё не задана)
+            "UPDATE users SET role = 'admin' WHERE id = (SELECT MIN(id) FROM users) AND role = 'user'",
+        ]
+        async with self.pool.acquire() as conn:
+            for sql in migrations:
+                try:
+                    await conn.execute(sql)
+                except Exception as e:
+                    print(f"⚠️ Migration skipped: {e}")
+        print("✅ Migrations applied")
     
     async def init_database(self):
         """Инициализация таблиц из init.sql"""

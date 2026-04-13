@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Settings, Eye, EyeOff, Save, CheckCircle, Download, Upload, Lock, Users, UserPlus, Trash2 } from 'lucide-react';
 import { settingsAPI, loginAPI, usersAPI } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 /* ── Конфиг пунктов меню ── */
 export const NAV_ITEMS_CONFIG = [
@@ -35,6 +36,7 @@ const DEFAULT_SETTINGS = {
 };
 
 export default function SettingsPage() {
+    const { isAdmin } = useAuth();
     const [settings,    setSettings]    = useState(DEFAULT_SETTINGS);
     const [visibility,  setVisibility]  = useState(DEFAULT_MENU_VISIBILITY);
     const [loading,     setLoading]     = useState(true);
@@ -385,7 +387,9 @@ export default function SettingsPage() {
                         )}
                     </div>
                 </motion.div>
-                {/* ── Пользователи ── */}
+
+                {/* ── Пользователи (только admin) ── */}
+                {isAdmin && (
                 <motion.div className="card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                     <SectionHeader title="Пользователи" />
 
@@ -393,18 +397,26 @@ export default function SettingsPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
                         {users.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Нет пользователей</p>}
                         {users.map(u => (
+
                             <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-darker)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '10px 14px' }}>
                                 <div>
-                                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{u.username}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{u.username}</span>
+                                        <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: 10, fontWeight: 700,
+                                            background: u.role === 'admin' ? 'rgba(0,212,255,.15)' : 'rgba(255,255,255,.07)',
+                                            color: u.role === 'admin' ? 'var(--neon-cyan)' : 'var(--text-muted)',
+                                            border: `1px solid ${u.role === 'admin' ? 'rgba(0,212,255,.4)' : 'rgba(255,255,255,.1)'}`,
+                                        }}>{u.role || 'user'}</span>
+                                    </div>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                         {u.last_login ? `Последний вход: ${new Date(u.last_login).toLocaleDateString('ru')}` : 'Ещё не входил'}
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => handleDeleteUser(u.id)}
-                                    disabled={deletingId === u.id}
-                                    title="Удалить"
-                                    style={{ background: 'rgba(255,0,128,.1)', border: '1px solid var(--neon-pink)', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', color: 'var(--neon-pink)', display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.8rem' }}
+                                    disabled={deletingId === u.id || u.role === 'admin'}
+                                    title={u.role === 'admin' ? 'Нельзя удалить admin' : 'Удалить'}
+                                    style={{ background: u.role === 'admin' ? 'transparent' : 'rgba(255,0,128,.1)', border: `1px solid ${u.role === 'admin' ? 'transparent' : 'var(--neon-pink)'}`, borderRadius: 6, padding: '6px 10px', cursor: u.role === 'admin' ? 'not-allowed' : 'pointer', color: u.role === 'admin' ? 'var(--text-muted)' : 'var(--neon-pink)', display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.8rem', opacity: u.role === 'admin' ? 0.4 : 1 }}
                                 >
                                     <Trash2 size={13} /> {deletingId === u.id ? '...' : 'Удалить'}
                                 </button>
@@ -452,6 +464,7 @@ export default function SettingsPage() {
                         </form>
                     </div>
                 </motion.div>
+                )}
 
                 {/* ── Смена пароля ── */}
                 <motion.div className="card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>

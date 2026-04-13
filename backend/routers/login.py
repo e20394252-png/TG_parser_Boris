@@ -88,11 +88,12 @@ def verify_telegram_data(data: TelegramAuthData) -> bool:
     return hmac.compare_digest(expected_hash, data.hash)
 
 
-def create_jwt(telegram_id: int, username: Optional[str], first_name: str) -> str:
+def create_jwt(user_id: int, username: Optional[str], first_name: str, role: str = "user") -> str:
     payload = {
-        "sub": str(telegram_id),
+        "sub": str(user_id),
         "username": username,
         "first_name": first_name,
+        "role": role,
         "exp": int(time.time()) + JWT_EXPIRE_DAYS * 86400,
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -132,7 +133,7 @@ async def login_via_password(data: PasswordLoginRequest):
     from database.database import db
 
     user = await db.fetchrow(
-        "SELECT id, username, password_hash FROM users WHERE username = $1",
+        "SELECT id, username, password_hash, role FROM users WHERE username = $1",
         data.username
     )
     if not user:
@@ -155,15 +156,17 @@ async def login_via_password(data: PasswordLoginRequest):
         user["id"]
     )
 
-    token = create_jwt(user["id"], data.username, data.username)
+    role  = user.get("role") or "user"
+    token = create_jwt(user["id"], data.username, data.username, role)
     user_info = {
-        "id": user["id"],
+        "id":         user["id"],
         "first_name": data.username,
-        "last_name": None,
-        "username": data.username,
-        "photo_url": None,
+        "last_name":  None,
+        "username":   data.username,
+        "photo_url":  None,
+        "role":       role,
     }
-    logger.info(f"✅ Login: {data.username} (id={user['id']})")
+    logger.info(f"✅ Login: {data.username} (id={user['id']}, role={role})")
     return LoginResponse(token=token, user=user_info)
 
 
@@ -257,17 +260,18 @@ async def initial_setup(data: SetupRequest):
 
     hashed = _bcrypt.hashpw(data.password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
     user_id = await db.fetchval(
-        "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id",
+        "INSERT INTO users (username, password_hash, role) VALUES ($1, $2, 'admin') RETURNING id",
         data.username.strip(), hashed
     )
 
-    token = create_jwt(user_id, data.username, data.username)
+    token = create_jwt(user_id, data.username, data.username, "admin")
     user_info = {
-        "id": user_id,
+        "id":         user_id,
         "first_name": data.username,
-        "last_name": None,
-        "username": data.username,
-        "photo_url": None,
+        "last_name":  None,
+        "username":   data.username,
+        "photo_url":  None,
+        "role":       "admin",
     }
     logger.info(f"✅ Initial setup: created admin '{data.username}' (id={user_id})")
     return LoginResponse(token=token, user=user_info)
@@ -309,10 +313,12 @@ async def change_password(
 
 @router.get("/users")
 async def list_users(current_user: dict = Depends(get_current_user)):
-    """Список всех пользователей (только для авторизованных)."""
+    """Список всех пользователей — только для admin."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только для администратора")
     from database.database import db
     rows = await db.fetch(
-        "SELECT id, username, last_login, created_at FROM users ORDER BY id"
+        "SELECT id, username, role, last_login, created_at FROM users ORDER BY id"
     )
     return {"users": [dict(r) for r in rows]}
 
@@ -327,7 +333,9 @@ async def create_user(
     data: CreateUserRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Создать нового пользователя (доступно любому авторизованному)."""
+    """Создать нового пользователя — только для admin."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только для администратора")
     from database.database import db
     import bcrypt as _bcrypt
 
@@ -345,7 +353,7 @@ async def create_user(
     except Exception:
         raise HTTPException(status_code=409, detail="Пользователь с таким логином уже существует")
 
-    logger.info(f"✅ Created user '{data.username}' (id={user_id}) by {current_user.get('username')}")
+    logger.info(f"✅ Created user '{data.username}' (id={user_id}) by admin {current_user.get('username')}")
     return {"id": user_id, "username": data.username.strip()}
 
 
@@ -354,7 +362,9 @@ async def delete_user(
     user_id: int,
     current_user: dict = Depends(get_current_user),
 ):
-    """Удалить пользователя. Нельзя удалить себя."""
+    """Удалить пользователя — только для admin. Нельзя удалить себя."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только для администратора")
     from database.database import db
 
     me = int(current_user["sub"])
@@ -365,6 +375,6 @@ async def delete_user(
     if result == "DELETE 0":
         raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-    logger.info(f"🗑 Deleted user_id={user_id} by {current_user.get('username')}")
+    logger.info(f"🗑 Deleted user_id={user_id} by admin {current_user.get('username')}")
     return {"success": True}
 

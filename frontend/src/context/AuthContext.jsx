@@ -14,6 +14,14 @@ export function AuthProvider({ children }) {
 
     const isAuthenticated = Boolean(token && user);
 
+    // Извлекаем роль из JWT payload
+    const role    = (() => {
+        if (!token) return null;
+        try { return JSON.parse(atob(token.split('.')[1])).role || 'user'; }
+        catch { return 'user'; }
+    })();
+    const isAdmin = role === 'admin';
+
     const login = useCallback((newToken, userData) => {
         localStorage.setItem(TOKEN_KEY, newToken);
         localStorage.setItem(USER_KEY, JSON.stringify(userData));
@@ -42,7 +50,7 @@ export function AuthProvider({ children }) {
     }, [token, logout]);
 
     return (
-        <AuthContext.Provider value={{ token, user, isAuthenticated, login, logout }}>
+        <AuthContext.Provider value={{ token, user, isAuthenticated, role, isAdmin, login, logout }}>
             {children}
         </AuthContext.Provider>
     );
