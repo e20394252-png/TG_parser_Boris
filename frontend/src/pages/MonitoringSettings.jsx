@@ -526,12 +526,18 @@ export default function MonitoringSettings() {
                                         <label className="form-label">Привязать к фильтрам</label>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '150px', overflowY: 'auto', padding: '10px', background: 'var(--bg-dark)', borderRadius: 8 }}>
                                             {filters.length === 0 && <span style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>Нет созданных фильтров</span>}
-                                            {filters.map(f => (
+                                            {filters.map(f => {
+                                                let safeFilters = [];
+                                                if (Array.isArray(r.filters)) safeFilters = r.filters;
+                                                else if (typeof r.filters === 'string') {
+                                                    try { safeFilters = JSON.parse(r.filters); } catch(e){}
+                                                }
+                                                return (
                                                 <label key={`filter-edit-${f.id}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <input type="checkbox" name="filter_ids" value={f.id} defaultChecked={r.filters?.some(rf => rf.id === f.id)} />
+                                                    <input type="checkbox" name="filter_ids" value={f.id} defaultChecked={safeFilters.some(rf => rf.id === f.id)} />
                                                     <span>{f.name} <span style={{fontSize: '0.75rem', color: 'var(--text-muted)'}}>({f.pattern})</span></span>
                                                 </label>
-                                            ))}
+                                            )})}
                                         </div>
                                     </div>
                                     <div style={{ display: 'flex', gap: 10 }}>
@@ -551,12 +557,19 @@ export default function MonitoringSettings() {
                                             </div>
                                             <div style={{ fontSize: '0.9rem', marginBottom: 8 }}>{r.template_text?.substring(0, 100)}{r.template_text?.length > 100 ? '...' : ''}</div>
                                             
-                                            {r.filters && r.filters.length > 0 && (
-                                                <div style={{ fontSize: '0.75rem', marginTop: 8 }}>
-                                                    <span style={{ color: 'var(--text-muted)' }}>Триггеры (фильтры): </span>
-                                                    {r.filters.map(f => <span key={f.id} className="badge" style={{background: 'rgba(255,255,255,0.1)', marginRight: 4, display: 'inline-block'}}>{f.name}</span>)}
-                                                </div>
-                                            )}
+                                            {(() => {
+                                                let safeFilters = [];
+                                                if (Array.isArray(r.filters)) safeFilters = r.filters;
+                                                else if (typeof r.filters === 'string') {
+                                                    try { safeFilters = JSON.parse(r.filters); } catch(e){}
+                                                }
+                                                return safeFilters.length > 0 ? (
+                                                    <div style={{ fontSize: '0.75rem', marginTop: 8 }}>
+                                                        <span style={{ color: 'var(--text-muted)' }}>Триггеры (фильтры): </span>
+                                                        {safeFilters.map(f => <span key={f.id} className="badge" style={{background: 'rgba(255,255,255,0.1)', marginRight: 4, display: 'inline-block'}}>{f.name}</span>)}
+                                                    </div>
+                                                ) : null;
+                                            })()}
                                         </div>
                                         <div style={{ display: 'flex', gap: 6 }}>
                                             <button className="btn btn-primary" onClick={() => setEditingResponse(r.id)} style={{ padding: '4px 8px', fontSize: '0.75rem' }}>
