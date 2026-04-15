@@ -176,9 +176,14 @@ class MessageMonitor:
             filters = await db.fetch(
                 """SELECT f.id, f.filter_type, f.pattern, f.case_sensitive
                    FROM message_filters f
-                   JOIN filter_chat_mapping fcm ON f.id = fcm.filter_id
-                   JOIN monitored_chats mc ON fcm.chat_id = mc.id
-                   WHERE f.session_id = $1 AND (mc.chat_id = $2 OR mc.chat_id = $3 OR mc.chat_id = $4 OR mc.chat_id = $5) AND f.is_active = true""",
+                   LEFT JOIN filter_chat_mapping fcm ON f.id = fcm.filter_id
+                   LEFT JOIN monitored_chats mc ON fcm.chat_id = mc.id
+                   WHERE f.session_id = $1 
+                     AND f.is_active = true
+                     AND (
+                         fcm.chat_id IS NULL OR 
+                         mc.chat_id = $2 OR mc.chat_id = $3 OR mc.chat_id = $4 OR mc.chat_id = $5
+                     )""",
                 session_id, chat_id, raw_id, int(f"-100{raw_id}"), int(f"-{raw_id}")
             )
             
