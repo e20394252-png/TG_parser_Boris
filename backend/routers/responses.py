@@ -118,6 +118,56 @@ async def create_response_template(
             detail=f"Ошибка при создании шаблона: {str(e)}"
         )
 
+@router.put("/templates/{response_id}")
+async def update_response_template(
+    response_id: int,
+    response_data: AutoResponseCreate,
+    user_id: int = Depends(require_user_id)
+):
+    """Обновление шаблона ответа"""
+    try:
+        row = await db.fetchrow(
+            """SELECT ts.user_id FROM auto_responses r
+               JOIN telegram_sessions ts ON r.session_id = ts.id
+               WHERE r.id = $1""", response_id
+        )
+        if not row or row["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+        async with db.transaction() as conn:
+            # Обновляем шаблон
+            await conn.execute(
+                """UPDATE auto_responses 
+                   SET name = $1, response_type = $2, template_text = $3, 
+                       use_ai = $4, ai_provider_id = $5, use_rag = $6
+                   WHERE id = $7""",
+                response_data.name, response_data.response_type, response_data.template_text,
+                response_data.use_ai, response_data.ai_provider_id, response_data.use_rag,
+                response_id
+            )
+            
+            # Обновляем связи с фильтрами
+            await conn.execute("DELETE FROM filter_response_mapping WHERE response_id = $1", response_id)
+            if response_data.filter_ids:
+                for filter_id in response_data.filter_ids:
+                    await conn.execute(
+                        """INSERT INTO filter_response_mapping (filter_id, response_id)
+                           VALUES ($1, $2)
+                           ON CONFLICT DO NOTHING""",
+                        filter_id, response_id
+                    )
+        return {
+            "success": True,
+            "message": "Шаблон обновлен"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при обновлении шаблона: {str(e)}"
+        )
+
 @router.delete("/templates/{response_id}")
 async def delete_response_template(
     response_id: int,

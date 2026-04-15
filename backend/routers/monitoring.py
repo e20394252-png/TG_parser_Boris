@@ -267,6 +267,54 @@ async def create_message_filter(
             detail=f"Ошибка при создании фильтра: {str(e)}"
         )
 
+@router.put("/filters/{filter_id}")
+async def update_message_filter(
+    filter_id: int,
+    filter_data: MessageFilterCreate,
+    user_id: int = Depends(require_user_id)
+):
+    """Обновление фильтра сообщений"""
+    try:
+        # Check permissions
+        row = await db.fetchrow(
+            """SELECT ts.user_id FROM message_filters f
+               JOIN telegram_sessions ts ON f.session_id = ts.id
+               WHERE f.id = $1""", filter_id
+        )
+        if not row or row["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+        async with db.transaction() as conn:
+            # Обновляем фильтр
+            await conn.execute(
+                """UPDATE message_filters 
+                   SET name = $1, filter_type = $2, pattern = $3, case_sensitive = $4
+                   WHERE id = $5""",
+                filter_data.name, filter_data.filter_type, filter_data.pattern, filter_data.case_sensitive, filter_id
+            )
+            
+            # Обновляем связи с чатами (сначала удаляем, потом создаем)
+            await conn.execute("DELETE FROM filter_chat_mapping WHERE filter_id = $1", filter_id)
+            if filter_data.chat_ids:
+                for chat_id in filter_data.chat_ids:
+                    await conn.execute(
+                        """INSERT INTO filter_chat_mapping (filter_id, chat_id)
+                           VALUES ($1, $2)
+                           ON CONFLICT DO NOTHING""",
+                        filter_id, chat_id
+                    )
+        return {
+            "success": True,
+            "message": "Фильтр обновлен"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при обновлении фильтра: {str(e)}"
+        )
+
 @router.delete("/filters/{filter_id}")
 async def delete_message_filter(
     filter_id: int,

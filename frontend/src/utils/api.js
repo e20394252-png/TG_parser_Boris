@@ -62,6 +62,7 @@ export const monitoringAPI = {
 
     getFilters: (sessionId) => api.get('/monitoring/filters', { params: { session_id: sessionId } }),
     createFilter: (data) => api.post('/monitoring/filters', data),
+    updateFilter: (filterId, data) => api.put(`/monitoring/filters/${filterId}`, data),
     deleteFilter: (filterId) => api.delete(`/monitoring/filters/${filterId}`),
     toggleFilter: (filterId) => api.patch(`/monitoring/filters/${filterId}/toggle`),
 };
@@ -70,6 +71,7 @@ export const monitoringAPI = {
 export const responsesAPI = {
     getTemplates: (sessionId) => api.get('/responses/templates', { params: { session_id: sessionId } }),
     createTemplate: (data) => api.post('/responses/templates', data),
+    updateTemplate: (responseId, data) => api.put(`/responses/templates/${responseId}`, data),
     deleteTemplate: (responseId) => api.delete(`/responses/templates/${responseId}`),
     getHistory: (sessionId, limit, offset) =>
         api.get('/responses/history', { params: { session_id: sessionId, limit, offset } }),
