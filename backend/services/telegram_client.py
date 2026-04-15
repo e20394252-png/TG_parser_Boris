@@ -110,12 +110,12 @@ class TelegramClientManager:
             raise Exception(f"Ошибка при получении диалогов: {str(e)}")
     
     async def send_message(self, session_id: int, api_id: int, api_hash: str, 
-                          session_string: str, user_id: int, message: str):
+                          session_string: str, entity, message: str):
         """Отправка личного сообщения"""
         try:
             client = await self.get_client(session_id, api_id, api_hash, session_string)
             
-            await client.send_message(user_id, message)
+            await client.send_message(entity, message)
             
             return True
         

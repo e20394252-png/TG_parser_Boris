@@ -18,7 +18,7 @@ class AutoResponder:
         # self.rag_service = RAGService()
     
     async def send_response(self, session_id: int, message_history_id: int, 
-                           response: Dict, recipient_id: int):
+                           response: Dict, recipient_entity):
         """Отправка автоответа пользователю"""
         try:
             # Получаем данные сессии
@@ -29,6 +29,8 @@ class AutoResponder:
             
             if not session:
                 raise Exception("Сессия не найдена")
+            
+            recipient_id = getattr(recipient_entity, 'id', 0)
             
             # Генерируем текст ответа
             response_text = await self.generate_response_text(
@@ -44,7 +46,7 @@ class AutoResponder:
                     api_id=int(session['api_id']),
                     api_hash=session['api_hash'],
                     session_string=session['session_string'],
-                    user_id=recipient_id,
+                    entity=recipient_entity,
                     message=response_text
                 )
                 

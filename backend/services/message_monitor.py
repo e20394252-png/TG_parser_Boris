@@ -157,7 +157,7 @@ class MessageMonitor:
                         session_id=session_id,
                         message_history_id=message_history_id,
                         response=response,
-                        recipient_id=sender.id
+                        recipient_entity=sender
                     )
         
         except Exception as e:
