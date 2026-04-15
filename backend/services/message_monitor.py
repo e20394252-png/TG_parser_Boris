@@ -65,13 +65,16 @@ class MessageMonitor:
             chat_id = event.chat_id
             sender = await event.get_sender()
             
+            # Telethon's message.date is timezone-aware (UTC). We remove tzinfo to match asyncpg expectations for naive timestamps
+            msg_date = message.date.replace(tzinfo=None) if message.date else datetime.now()
+            
             # Сохраняем сообщение в историю (для фильтров)
             message_history_id = await db.fetchval(
                 """INSERT INTO message_history 
                    (session_id, chat_id, message_id, sender_id, sender_username, message_text, received_at)
                    VALUES ($1, $2, $3, $4, $5, $6, $7)
                    RETURNING id""",
-                session_id, chat_id, message.id, sender.id,
+                session_id, chat_id, message.id, getattr(sender, 'id', 0),
                 getattr(sender, 'username', None), message.text, datetime.now()
             )
             
@@ -83,8 +86,8 @@ class MessageMonitor:
                    ON CONFLICT (chat_id, message_id) DO UPDATE 
                    SET message_text = EXCLUDED.message_text
                    RETURNING id""",
-                session_id, chat_id, message.id, sender.id,
-                getattr(sender, 'username', None), message.text, message.date, False
+                session_id, chat_id, message.id, getattr(sender, 'id', 0),
+                getattr(sender, 'username', None), message.text, msg_date, False
             )
             
             # Индексируем сообщение в RAG (асинхронно, не блокируем обработку)
