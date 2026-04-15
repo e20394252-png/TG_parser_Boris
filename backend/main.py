@@ -23,9 +23,36 @@ async def lifespan(app: FastAPI):
     # Создаём пользователей по умолчанию
     from services.user_seed import seed_users
     await seed_users()
+    
+    # Запускаем мониторинг для активных сессий
+    try:
+        from services.message_monitor import monitor_service
+        active_sessions = await db.fetch("SELECT id, api_id, api_hash, session_string FROM telegram_sessions WHERE session_string IS NOT NULL")
+        for session in active_sessions:
+            try:
+                await monitor_service.start_monitoring(
+                    session_id=session['id'],
+                    api_id=int(session['api_id']),
+                    api_hash=session['api_hash'],
+                    session_string=session['session_string']
+                )
+            except Exception as e:
+                logger.error(f"Не удалось запустить мониторинг для сессии {session['id']}: {e}")
+    except Exception as e:
+        logger.error(f"Ошибка при инициализации мониторинга: {e}")
+        
     yield
+    
     # Shutdown
     logger.info("🛑 Shutting down...")
+    try:
+        from services.message_monitor import monitor_service
+        for session_id in list(monitor_service.active_monitors.keys()):
+            if monitor_service.active_monitors[session_id]:
+                await monitor_service.stop_monitoring(session_id)
+    except Exception as e:
+         logger.error(f"Ошибка при остановке сессий: {e}")
+         
     await db.disconnect()
 
 # Создание FastAPI приложения

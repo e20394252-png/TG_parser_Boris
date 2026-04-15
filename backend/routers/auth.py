@@ -116,6 +116,18 @@ async def submit_telegram_code(
             session_string, session['id']
         )
         
+        # Автоматический запуск мониторинга для новой сессии
+        try:
+            from services.message_monitor import monitor_service
+            await monitor_service.start_monitoring(
+                session_id=session['id'],
+                api_id=int(session['api_id']),
+                api_hash=session['api_hash'],
+                session_string=session_string
+            )
+        except Exception as e:
+            print(f"Ошибка запуска мониторинга при авторизации: {e}")
+        
         return AuthResponse(
             success=True,
             message="Авторизация успешна!",
@@ -175,6 +187,13 @@ async def logout_telegram(
             "UPDATE telegram_sessions SET is_active = false WHERE id = $1",
             session_id
         )
+        
+        try:
+            from services.message_monitor import monitor_service
+            await monitor_service.stop_monitoring(session_id)
+        except Exception:
+            pass
+            
         await telegram_manager.stop_client(session_id)
         return {"success": True, "message": "Выход выполнен"}
     

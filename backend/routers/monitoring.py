@@ -9,9 +9,24 @@ from datetime import datetime
 from database.database import db
 from services.auth_deps import require_user_id, verify_session_owner
 from services.telegram_client import TelegramClientManager
+from services.message_monitor import monitor_service
 
 router = APIRouter()
 _tg_manager = TelegramClientManager()
+
+async def refresh_session_monitor(session_id: int):
+    """Обновляет обработчик Telethon для сессии при изменении чатов"""
+    try:
+        session = await db.fetchrow("SELECT api_id, api_hash, session_string FROM telegram_sessions WHERE id = $1", session_id)
+        if session and session['session_string']:
+            await monitor_service.start_monitoring(
+                session_id=session_id,
+                api_id=int(session['api_id']),
+                api_hash=session['api_hash'],
+                session_string=session['session_string']
+            )
+    except Exception as e:
+        print(f"Error refreshing monitor for {session_id}: {e}")
 
 class MonitoredChatCreate(BaseModel):
     session_id: int
@@ -94,6 +109,8 @@ async def add_monitored_chat(
             chat.session_id, chat.chat_id, chat.chat_title, chat.chat_username
         )
         
+        await refresh_session_monitor(chat.session_id)
+        
         return {
             "success": True,
             "message": "Чат добавлен в мониторинг",
@@ -115,15 +132,17 @@ async def remove_monitored_chat(
 ):
     """Удаление чата из мониторинга"""
     try:
-        # Проверяем владельца через JOIN
         row = await db.fetchrow(
-            """SELECT ts.user_id FROM monitored_chats mc
+            """SELECT ts.user_id, mc.session_id FROM monitored_chats mc
                JOIN telegram_sessions ts ON mc.session_id = ts.id
                WHERE mc.id = $1""", chat_id
         )
         if not row or row["user_id"] != user_id:
             raise HTTPException(status_code=403, detail="Доступ запрещён")
         await db.execute("DELETE FROM monitored_chats WHERE id = $1", chat_id)
+        
+        await refresh_session_monitor(row["session_id"])
+        
         return {"success": True, "message": "Чат удален из мониторинга"}
     except HTTPException:
         raise
@@ -141,7 +160,7 @@ async def toggle_chat_monitoring(
     """Включение/выключение мониторинга чата"""
     try:
         row = await db.fetchrow(
-            """SELECT mc.is_active, ts.user_id FROM monitored_chats mc
+            """SELECT mc.is_active, mc.session_id, ts.user_id FROM monitored_chats mc
                JOIN telegram_sessions ts ON mc.session_id = ts.id
                WHERE mc.id = $1""", chat_id
         )
@@ -155,6 +174,8 @@ async def toggle_chat_monitoring(
             "UPDATE monitored_chats SET is_active = $1 WHERE id = $2",
             not current, chat_id
         )
+        
+        await refresh_session_monitor(row["session_id"])
         
         return {
             "success": True,

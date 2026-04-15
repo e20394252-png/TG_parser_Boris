@@ -19,6 +19,7 @@ class MessageMonitor:
         # Временно отключаем RAG сервис
         # self.rag_service = RAGService()
         self.active_monitors: Dict[int, bool] = {}
+        self.handlers: Dict[int, callable] = {}
     
     async def start_monitoring(self, session_id: int, api_id: int, api_hash: str, session_string: str):
         """Запуск мониторинга для сессии"""
@@ -33,13 +34,25 @@ class MessageMonitor:
             
             chat_ids = [chat['chat_id'] for chat in monitored_chats]
             
+            # Удаляем старый обработчик, если он был
+            if session_id in self.handlers:
+                client.remove_event_handler(self.handlers[session_id], events.NewMessage)
+                del self.handlers[session_id]
+
+            if not chat_ids:
+                print(f"ℹ️ Нет активных чатов для сессии {session_id}, мониторинг приостановлен.")
+                self.active_monitors[session_id] = False
+                return
+
             # Регистрируем обработчик новых сообщений
-            @client.on(events.NewMessage(chats=chat_ids))
             async def handler(event):
                 await self.process_message(session_id, event)
             
+            client.add_event_handler(handler, events.NewMessage(chats=chat_ids))
+            self.handlers[session_id] = handler
+            
             self.active_monitors[session_id] = True
-            print(f"✅ Мониторинг запущен для сессии {session_id}")
+            print(f"✅ Мониторинг запущен для сессии {session_id} (чатов: {len(chat_ids)})")
         
         except Exception as e:
             print(f"❌ Ошибка при запуске мониторинга: {str(e)}")
@@ -191,5 +204,20 @@ class MessageMonitor:
     async def stop_monitoring(self, session_id: int):
         """Остановка мониторинга"""
         self.active_monitors[session_id] = False
-        await self.telegram_manager.stop_client(session_id)
+        if session_id in self.handlers:
+            try:
+                # Получаем параметры сессии для клиента
+                session = await db.fetchrow(
+                    "SELECT api_id, api_hash, session_string FROM telegram_sessions WHERE id = $1",
+                    session_id
+                )
+                if session and session['session_string']:
+                    client = await self.telegram_manager.get_client(session_id, int(session['api_id']), session['api_hash'], session['session_string'])
+                    client.remove_event_handler(self.handlers[session_id], events.NewMessage)
+            except Exception as e:
+                print(f"⚠️ Ошибка при удалении обработчика (сессия {session_id}): {str(e)}")
+            del self.handlers[session_id]
         print(f"🛑 Мониторинг остановлен для сессии {session_id}")
+
+# Глобальный экземпляр для использования в роутерах
+monitor_service = MessageMonitor()
