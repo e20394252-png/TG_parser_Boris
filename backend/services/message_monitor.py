@@ -20,6 +20,7 @@ class MessageMonitor:
         # self.rag_service = RAGService()
         self.active_monitors: Dict[int, bool] = {}
         self.handlers: Dict[int, callable] = {}
+        self.active_chat_ids: Dict[int, List[int]] = {}
     
     async def start_monitoring(self, session_id: int, api_id: int, api_hash: str, session_string: str):
         """Запуск мониторинга для сессии"""
@@ -39,16 +40,32 @@ class MessageMonitor:
                 client.remove_event_handler(self.handlers[session_id], events.NewMessage)
                 del self.handlers[session_id]
 
+            # Сохраняем в кеш, всегда добавляем сырые ID и нормализованные
+            normalized_ids = []
+            for cid in chat_ids:
+                normalized_ids.append(cid)
+                if str(cid).startswith('-100'):
+                    normalized_ids.append(int(str(cid)[4:]))
+                elif str(cid).startswith('-'):
+                    normalized_ids.append(int(str(cid)[1:]))
+                else:
+                    normalized_ids.append(int(f"-100{cid}"))
+                    normalized_ids.append(int(f"-{cid}"))
+            
+            self.active_chat_ids[session_id] = normalized_ids
+
             if not chat_ids:
                 print(f"ℹ️ Нет активных чатов для сессии {session_id}, мониторинг приостановлен.")
                 self.active_monitors[session_id] = False
                 return
 
-            # Регистрируем обработчик новых сообщений
+            # Регистрируем глобальный обработчик новых сообщений
             async def handler(event):
                 await self.process_message(session_id, event)
             
-            client.add_event_handler(handler, events.NewMessage(chats=chat_ids))
+            # Не фильтруем в Telethon, чтобы избежать багов с нераспознанными ID (EntityNotFoundError)
+            # Фильтруем сами внутри process_message
+            client.add_event_handler(handler, events.NewMessage(incoming=True))
             self.handlers[session_id] = handler
             
             self.active_monitors[session_id] = True
@@ -61,8 +78,13 @@ class MessageMonitor:
     async def process_message(self, session_id: int, event):
         """Обработка нового сообщения"""
         try:
-            message = event.message
             chat_id = event.chat_id
+            
+            # Проверяем, отслеживаем ли мы этот чат (быстрая фильтрация по кешу)
+            if session_id not in self.active_chat_ids or chat_id not in self.active_chat_ids[session_id]:
+                return
+                
+            message = event.message
             sender = await event.get_sender()
             
             # Telethon's message.date is timezone-aware (UTC). We remove tzinfo to match asyncpg expectations for naive timestamps
@@ -132,14 +154,20 @@ class MessageMonitor:
     async def check_filters(self, session_id: int, chat_id: int, message_text: str) -> Dict:
         """Проверка сообщения на соответствие фильтрам"""
         try:
-            # Получаем активные фильтры для этого чата
+            # Получаем активные фильтры для этого чата, покрывая разные форматы ID
+            raw_id = chat_id
+            if str(chat_id).startswith('-100'):
+                raw_id = int(str(chat_id)[4:])
+            elif str(chat_id).startswith('-'):
+                raw_id = int(str(chat_id)[1:])
+                
             filters = await db.fetch(
                 """SELECT f.id, f.filter_type, f.pattern, f.case_sensitive
                    FROM message_filters f
                    JOIN filter_chat_mapping fcm ON f.id = fcm.filter_id
                    JOIN monitored_chats mc ON fcm.chat_id = mc.id
-                   WHERE f.session_id = $1 AND mc.chat_id = $2 AND f.is_active = true""",
-                session_id, chat_id
+                   WHERE f.session_id = $1 AND (mc.chat_id = $2 OR mc.chat_id = $3 OR mc.chat_id = $4 OR mc.chat_id = $5) AND f.is_active = true""",
+                session_id, chat_id, raw_id, int(f"-100{raw_id}"), int(f"-{raw_id}")
             )
             
             for filter_data in filters:
