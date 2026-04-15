@@ -80,10 +80,19 @@ class MessageMonitor:
         try:
             chat_id = event.chat_id
             
+            print(f"DEBUG: New message received in chat {chat_id} for session {session_id}")
+            
             # Проверяем, отслеживаем ли мы этот чат (быстрая фильтрация по кешу)
-            if session_id not in self.active_chat_ids or chat_id not in self.active_chat_ids[session_id]:
+            if session_id not in self.active_chat_ids:
+                print(f"DEBUG: Session {session_id} not in active_chat_ids map")
                 return
                 
+            if chat_id not in self.active_chat_ids[session_id]:
+                # Uncomment to see all ignored chats (can be noisy)
+                # print(f"DEBUG: Chat {chat_id} not in map for session {session_id}: {self.active_chat_ids[session_id]}")
+                return
+                
+            print(f"DEBUG: ACCEPTED MESSAGE from {chat_id}")
             message = event.message
             sender = await event.get_sender()
             
@@ -121,10 +130,13 @@ class MessageMonitor:
                 print(f"⚠️ Ошибка индексации сообщения в RAG: {str(e)}")
             
             # Обновляем статистику
+            print(f"DEBUG: Updating statistics...")
             await self.update_statistics(session_id, 'messages_monitored')
             
             # Проверяем фильтры
+            print(f"DEBUG: Checking filters for {message.text}")
             matched_filter = await self.check_filters(session_id, chat_id, message.text)
+            print(f"DEBUG: Matched filter: {matched_filter}")
             
             if matched_filter:
                 # Обновляем сообщение с matched_filter_id
