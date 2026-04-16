@@ -269,7 +269,12 @@ export default function SettingsPage() {
                     <FieldRow label="Подключение через TData">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <div
-                                onClick={() => handleSave('telegram', { ...settings.telegram, tdata_enabled: !settings.telegram?.tdata_enabled })}
+                                onClick={() => {
+                                    const next = { ...settings.telegram, tdata_enabled: !settings.telegram?.tdata_enabled };
+                                    // optimistic update — сразу меняем локальный стейт
+                                    setSettings(prev => ({ ...prev, telegram: next }));
+                                    handleSave('telegram', next);
+                                }}
                                 style={{
                                     position: 'relative', width: 40, height: 22, cursor: 'pointer',
                                     background: settings.telegram?.tdata_enabled ? 'var(--neon-cyan)' : 'rgba(255,255,255,0.15)',
@@ -289,7 +294,9 @@ export default function SettingsPage() {
                     <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(0,212,255,0.05)',
                         border: '1px solid rgba(0,212,255,0.15)', borderRadius: 8,
                         fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        Включите, чтобы отобразить вкладку «📂 TData» на странице авторизации Telegram
+                        {settings.telegram?.tdata_enabled
+                            ? '✅ TData включён — перейдите на страницу «Авторизация ТГ» чтобы увидеть вкладку «📂 TData»'
+                            : 'Включите, чтобы отобразить вкладку «📂 TData» на странице авторизации Telegram'}
                     </div>
                 </motion.div>
 

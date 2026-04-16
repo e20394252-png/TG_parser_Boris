@@ -35,6 +35,15 @@ class Database:
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'",
             # Первый пользователь в системе получает роль admin (только если ещё не задана)
             "UPDATE users SET role = 'admin' WHERE id = (SELECT MIN(id) FROM users) AND role = 'user'",
+            # v2: правильная таблица настроек — привязана к users, а не к telegram_sessions
+            """CREATE TABLE IF NOT EXISTS user_preferences (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                setting_key TEXT NOT NULL,
+                setting_value JSONB NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, setting_key)
+            )""",
         ]
         async with self.pool.acquire() as conn:
             for sql in migrations:
