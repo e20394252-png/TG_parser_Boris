@@ -40,7 +40,8 @@ async def get_settings(user_id: int = Depends(require_user_id)):
             'telegram': {
                 'connection_timeout': 30,
                 'retry_attempts': 3,
-                'auto_reconnect': True
+                'auto_reconnect': True,
+                'tdata_enabled': False,
             },
             'ai': {
                 'default_provider': 'openai',

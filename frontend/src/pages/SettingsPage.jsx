@@ -266,6 +266,31 @@ export default function SettingsPage() {
                         <input type="checkbox" checked={settings.telegram?.auto_reconnect || false}
                             onChange={e => handleSave('telegram', { ...settings.telegram, auto_reconnect: e.target.checked })} />
                     </FieldRow>
+                    <FieldRow label="Подключение через TData">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div
+                                onClick={() => handleSave('telegram', { ...settings.telegram, tdata_enabled: !settings.telegram?.tdata_enabled })}
+                                style={{
+                                    position: 'relative', width: 40, height: 22, cursor: 'pointer',
+                                    background: settings.telegram?.tdata_enabled ? 'var(--neon-cyan)' : 'rgba(255,255,255,0.15)',
+                                    borderRadius: 11, transition: 'background 0.2s', flexShrink: 0,
+                                }}
+                            >
+                                <div style={{
+                                    position: 'absolute', top: 3,
+                                    left: settings.telegram?.tdata_enabled ? 21 : 3,
+                                    width: 16, height: 16, borderRadius: '50%',
+                                    background: '#fff', transition: 'left 0.2s',
+                                }} />
+                            </div>
+                            <SaveHint k="telegram" />
+                        </div>
+                    </FieldRow>
+                    <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(0,212,255,0.05)',
+                        border: '1px solid rgba(0,212,255,0.15)', borderRadius: 8,
+                        fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Включите, чтобы отобразить вкладку «📂 TData» на странице авторизации Telegram
+                    </div>
                 </motion.div>
 
                 {/* ── AI ── */}
