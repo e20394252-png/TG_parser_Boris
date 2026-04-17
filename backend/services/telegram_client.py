@@ -18,10 +18,11 @@ class TelegramClientManager:
     # TData import
     # ─────────────────────────────────────────────────────────────
 
-    async def import_from_tdata(self, tdata_path: str, api_id: int, api_hash: str) -> str:
+    async def import_from_tdata(self, tdata_path: str) -> tuple:
         """
         Конвертирует TData папку в Telethon StringSession.
-        Возвращает session_string для сохранения в БД.
+        API credentials берутся из самого TData (встроенный API Telegram Desktop).
+        Возвращает (session_string, api_id, api_hash).
         """
         try:
             from opentele.td import TDesktop
@@ -36,12 +37,16 @@ class TelegramClientManager:
                     "Убедитесь что архив содержит корректную папку tdata."
                 )
 
-            logger.info("[TData] Конвертация в Telethon клиент...")
+            # Читаем API прямо из TData — credentials Telegram Desktop
+            account_api = tdesk.mainAccount.api
+            api_id: int = account_api.api_id
+            api_hash: str = account_api.api_hash
+
+            logger.info(f"[TData] Конвертация в Telethon клиент (api_id={api_id})...")
+            # Не передаём api_id/api_hash — opentele использует account.api из TData
             client = await tdesk.ToTelethon(
                 session=StringSession(),
                 flag=UseCurrentSession,
-                api_id=api_id,
-                api_hash=api_hash,
             )
 
             await client.connect()
@@ -52,13 +57,13 @@ class TelegramClientManager:
             session_string = client.session.save()
             await client.disconnect()
             logger.info("[TData] Конвертация успешна")
-            return session_string
+            return session_string, api_id, api_hash
 
         except ImportError as e:
             logger.error(f"[TData] ImportError при импорте opentele: {e}")
             raise Exception(
                 f"Ошибка импорта opentele: {e}. "
-                "Убедитесь что opentele==1.15.1 установлен и совместим с текущей версией telethon."
+                "Убедитесь что opentele==1.15.1 установлен."
             )
         except Exception as e:
             logger.error(f"[TData] Ошибка: {e}")
