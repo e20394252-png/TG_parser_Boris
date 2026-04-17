@@ -57,7 +57,7 @@ class TelegramClientManager:
         except ImportError:
             raise Exception(
                 "Библиотека opentele не установлена. "
-                "Добавьте opentele==1.15.3 в requirements.txt и перезапустите сервер."
+                "Добавьте opentele==1.15.1 в requirements.txt и перезапустите сервер."
             )
         except Exception as e:
             logger.error(f"[TData] Ошибка: {e}")
