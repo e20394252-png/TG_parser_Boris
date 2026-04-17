@@ -35,6 +35,7 @@ export const authAPI = {
     submitCode: (data) => api.post('/auth/telegram/code', data),
     getStatus: () => api.get('/auth/status'),
     logout: (sessionId) => api.delete(`/auth/telegram/${sessionId}`),
+    deleteSession: (sessionId) => api.delete(`/auth/sessions/${sessionId}/permanent`),
     importTData: (formData) => api.post('/auth/telegram/tdata', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 120000, // 2 минуты — конвертация может занять время

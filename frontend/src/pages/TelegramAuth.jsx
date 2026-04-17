@@ -123,6 +123,16 @@ export default function TelegramAuth() {
         }
     };
 
+    const handleDeleteSession = async (sessionId) => {
+        if (!window.confirm('Удалить сессию насовсем? Это действие необратимо.')) return;
+        try {
+            await authAPI.deleteSession(sessionId);
+            loadSessions();
+        } catch (err) {
+            console.error('Ошибка при удалении:', err);
+        }
+    };
+
     // ─── TData flow handlers ───
 
     const handleDrag = useCallback((e) => {
@@ -441,10 +451,32 @@ export default function TelegramAuth() {
                                                         : <span className="badge badge-danger">Неактивна</span>}
                                                 </div>
                                             </div>
-                                            <button className="btn btn-danger" onClick={() => handleLogout(session.id)}
-                                                style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-                                                Выйти
-                                            </button>
+                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                <button className="btn btn-danger" onClick={() => handleLogout(session.id)}
+                                                    style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+                                                    Выйти
+                                                </button>
+                                                {!session.is_active && (
+                                                    <button
+                                                        onClick={() => handleDeleteSession(session.id)}
+                                                        title="Удалить насовсем"
+                                                        style={{
+                                                            padding: '8px 12px',
+                                                            fontSize: '0.8rem',
+                                                            background: 'rgba(255,0,80,0.12)',
+                                                            border: '1px solid rgba(255,0,80,0.4)',
+                                                            color: '#ff4060',
+                                                            borderRadius: 4,
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.2s',
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,0,80,0.25)'}
+                                                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,0,80,0.12)'}
+                                                    >
+                                                        🗑 Удалить
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

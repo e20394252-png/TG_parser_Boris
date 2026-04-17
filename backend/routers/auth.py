@@ -215,6 +215,49 @@ async def logout_telegram(
         )
 
 
+@router.delete("/sessions/{session_id}/permanent")
+async def delete_session_permanently(
+    session_id: int,
+    user_id: int = Depends(require_user_id)
+):
+    """
+    Постоянное удаление сессии из базы данных.
+    В отличие от logout, полностью стирает запись.
+    """
+    try:
+        owner = await db.fetchval(
+            "SELECT user_id FROM telegram_sessions WHERE id = $1", session_id
+        )
+        if owner is None:
+            raise HTTPException(status_code=404, detail="Сессия не найдена")
+        if owner != user_id:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+        # Останавливаем мониторинг и клиента если запущены
+        try:
+            from services.message_monitor import monitor_service
+            await monitor_service.stop_monitoring(session_id)
+        except Exception:
+            pass
+        try:
+            await telegram_manager.stop_client(session_id)
+        except Exception:
+            pass
+
+        # Полное удаление из БД
+        await db.execute("DELETE FROM telegram_sessions WHERE id = $1", session_id)
+        logger.info(f"[Auth] Сессия {session_id} удалена насовсем (user_id={user_id})")
+        return {"success": True, "message": "Сессия удалена"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ошибка при удалении: {str(e)}"
+        )
+
+
 # ──────────────── TData Import ────────────────
 
 MAX_TDATA_ZIP_SIZE = 100 * 1024 * 1024  # 100 MB

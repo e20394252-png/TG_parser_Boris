@@ -3,6 +3,12 @@ import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react
 import { Activity, MessageSquare, Settings as SettingsIcon, Brain, BarChart3, Search, Bot, Send, BookOpen, LogOut } from 'lucide-react';
 import './App.css';
 
+/* Импорт Orbitron-шрифта для Nexus-бейджа */
+const fontLink = document.createElement('link');
+fontLink.rel = 'stylesheet';
+fontLink.href = 'https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&display=swap';
+if (!document.head.querySelector('[href*="Orbitron"]')) document.head.appendChild(fontLink);
+
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { settingsAPI, loginAPI } from './utils/api';
 
@@ -57,13 +63,29 @@ function AppContent() {
         <div className="app">
             <aside className="sidebar">
                 <div className="sidebar-header">
-                    <div className="logo">
-                        <Activity className="logo-icon" />
-                        <div>
-                            <h1>TELEGRAM</h1>
-                            <div className="sidebar-subtitle">PARSER</div>
+                    <a
+                        href="https://telegram-parser-frontend.onrender.com/"
+                        style={{ textDecoration: 'none', color: 'inherit' }}
+                        title="На главную"
+                    >
+                        <div className="logo">
+                            <Activity className="logo-icon" />
+                            <div>
+                                <h1>TELEGRAM</h1>
+                                <div className="sidebar-subtitle">PARSER</div>
+                                <div style={{
+                                    fontFamily: "'Orbitron', sans-serif",
+                                    fontSize: '0.65rem',
+                                    fontWeight: 700,
+                                    letterSpacing: '0.18em',
+                                    color: 'var(--neon-cyan)',
+                                    textShadow: '0 0 8px var(--neon-cyan)',
+                                    marginTop: 2,
+                                    opacity: 0.85,
+                                }}>NEXUS</div>
+                            </div>
                         </div>
-                    </div>
+                    </a>
                 </div>
 
                 <nav className="nav-items">
