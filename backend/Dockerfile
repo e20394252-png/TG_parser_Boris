@@ -2,12 +2,19 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Установка системных зависимостей
+# Установка системных зависимостей (включая Qt5 для opentele/PyQt5)
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
+    libqt5core5a \
+    libqt5gui5 \
+    libqt5network5 \
+    libqt5widgets5 \
     && rm -rf /var/lib/apt/lists/*
+
+# Qt headless mode (без дисплея)
+ENV QT_QPA_PLATFORM=offscreen
 
 # Копирование зависимостей
 COPY requirements.txt .

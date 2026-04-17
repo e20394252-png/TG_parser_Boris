@@ -54,10 +54,11 @@ class TelegramClientManager:
             logger.info("[TData] Конвертация успешна")
             return session_string
 
-        except ImportError:
+        except ImportError as e:
+            logger.error(f"[TData] ImportError при импорте opentele: {e}")
             raise Exception(
-                "Библиотека opentele не установлена. "
-                "Добавьте opentele==1.15.1 в requirements.txt и перезапустите сервер."
+                f"Ошибка импорта opentele: {e}. "
+                "Убедитесь что opentele==1.15.1 установлен и совместим с текущей версией telethon."
             )
         except Exception as e:
             logger.error(f"[TData] Ошибка: {e}")
