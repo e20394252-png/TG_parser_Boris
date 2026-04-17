@@ -40,8 +40,7 @@ export default function TelegramAuth() {
 
     // TData flow
     const [tdataFile, setTdataFile] = useState(null);
-    const [tdataApiId, setTdataApiId] = useState('');
-    const [tdataApiHash, setTdataApiHash] = useState('');
+    // api_id и api_hash берутся из ENV на сервере — пользователю не нужно вводить
     const [tdataStatus, setTdataStatus] = useState('idle'); // 'idle' | 'uploading' | 'success' | 'error'
     const [tdataMessage, setTdataMessage] = useState('');
     const [dragActive, setDragActive] = useState(false);
@@ -157,7 +156,6 @@ export default function TelegramAuth() {
     const handleTDataImport = async (e) => {
         e.preventDefault();
         if (!tdataFile) { setTdataMessage('Выберите ZIP файл с TData'); return; }
-        if (!tdataApiId || !tdataApiHash) { setTdataMessage('Укажите API ID и API Hash'); return; }
 
         setTdataStatus('uploading');
         setTdataMessage('Загрузка и конвертация... Это может занять 30–60 секунд.');
@@ -165,8 +163,6 @@ export default function TelegramAuth() {
         try {
             const fd = new FormData();
             fd.append('file', tdataFile);
-            fd.append('api_id', tdataApiId);
-            fd.append('api_hash', tdataApiHash);
 
             const response = await authAPI.importTData(fd);
 
@@ -177,8 +173,6 @@ export default function TelegramAuth() {
                 setTimeout(() => {
                     setTdataStatus('idle');
                     setTdataFile(null);
-                    setTdataApiId('');
-                    setTdataApiHash('');
                     setTdataMessage('');
                 }, 4000);
             }
@@ -393,29 +387,7 @@ export default function TelegramAuth() {
                                         )}
                                     </div>
 
-                                    {/* API ID + Hash */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16 }}>
-                                        <div className="form-group" style={{ marginBottom: 0 }}>
-                                            <label className="form-label">
-                                                <Key size={14} style={{ display: 'inline', marginRight: 6 }} />
-                                                API ID
-                                            </label>
-                                            <input type="text" placeholder="12345678"
-                                                value={tdataApiId}
-                                                onChange={e => setTdataApiId(e.target.value)}
-                                                required />
-                                        </div>
-                                        <div className="form-group" style={{ marginBottom: 0 }}>
-                                            <label className="form-label">
-                                                <Lock size={14} style={{ display: 'inline', marginRight: 6 }} />
-                                                API Hash
-                                            </label>
-                                            <input type="text" placeholder="abcdef1234..."
-                                                value={tdataApiHash}
-                                                onChange={e => setTdataApiHash(e.target.value)}
-                                                required />
-                                        </div>
-                                    </div>
+                                    {/* API ID и Hash берутся из ENV сервера автоматически */}
 
                                     <button type="submit" className="btn btn-primary"
                                         disabled={tdataStatus === 'uploading' || !tdataFile}
@@ -528,7 +500,7 @@ export default function TelegramAuth() {
                                     <li><span className="auth-guide-num">3</span>
                                         <div>Выделите содержимое папки → правая кнопка → <b>«Сжать в ZIP»</b></div></li>
                                     <li><span className="auth-guide-num">4</span>
-                                        <div>Загрузите полученный .zip в форму слева вместе с API ID и API Hash</div></li>
+                                        <div>Загрузите полученный .zip в форму слева и нажмите <b>«Импортировать TData»</b></div></li>
                                 </ol>
                             </>
                         )}

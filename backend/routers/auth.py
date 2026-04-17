@@ -223,16 +223,23 @@ MAX_TDATA_ZIP_SIZE = 100 * 1024 * 1024  # 100 MB
 @router.post("/telegram/tdata", response_model=AuthResponse)
 async def import_tdata(
     file: UploadFile = File(..., description="ZIP-архив с папкой tdata"),
-    api_id: str = Form(...),
-    api_hash: str = Form(...),
     user_id: int = Depends(require_user_id),
 ):
     """
     Импорт Telegram-сессии из TData (Telegram Desktop).
     
     Принимает ZIP-архив с папкой tdata, конвертирует в StringSession
-    и сохраняет как обычную сессию.
+    и сохраняет как обычную сессию. API ID/Hash берутся из env-переменных.
     """
+    # Берём API креденшиалы с сервера
+    api_id_str = os.environ.get("TELEGRAM_API_ID", "")
+    api_hash = os.environ.get("TELEGRAM_API_HASH", "")
+    if not api_id_str or not api_hash:
+        raise HTTPException(
+            status_code=500,
+            detail="TELEGRAM_API_ID / TELEGRAM_API_HASH не сконфигурированы на сервере"
+        )
+    api_id = int(api_id_str)
     # Проверка типа файла
     if not file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Файл должен быть .zip архивом")
@@ -278,7 +285,7 @@ async def import_tdata(
         # Конвертируем в StringSession
         session_string = await telegram_manager.import_from_tdata(
             tdata_path=tdata_path,
-            api_id=int(api_id),
+            api_id=api_id,
             api_hash=api_hash,
         )
 
