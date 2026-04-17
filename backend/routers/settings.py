@@ -9,7 +9,7 @@ import json
 from database.database import db
 from services.auth_deps import require_user_id
 
-router = APIRouter(prefix="/settings", tags=["settings"])
+router = APIRouter(tags=["settings"])
 
 
 class SettingUpdate(BaseModel):
