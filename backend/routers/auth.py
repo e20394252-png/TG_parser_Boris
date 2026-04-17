@@ -273,20 +273,11 @@ async def import_tdata(
 
         logger.info(f"[TData] Найдена папка: {tdata_path}")
 
-        # Конвертируем в StringSession (все credentials берутся из TData)
-        session_string, api_id, api_hash = await telegram_manager.import_from_tdata(
+        # Конвертируем в StringSession (все credentials и проверка авторизации внутри)
+        session_string, api_id, api_hash, phone = await telegram_manager.import_from_tdata(
             tdata_path=tdata_path,
         )
 
-        # Получаем информацию об аккаунте для phone_number
-        from telethon import TelegramClient
-        from telethon.sessions import StringSession as SS
-        tmp_client = TelegramClient(SS(session_string), int(api_id), api_hash)
-        await tmp_client.connect()
-        me = await tmp_client.get_me()
-        await tmp_client.disconnect()
-
-        phone = me.phone or f"tdata_{me.id}"
         display_phone = f"+{phone}" if not phone.startswith("+") else phone
 
         # Сохраняем сессию в БД (upsert по phone_number)

@@ -85,21 +85,28 @@ class TelegramClientManager:
             client = TelegramClient(session, api_id, api_hash)
             await client.connect()
 
-            if not await client.is_user_authorized():
-                await client.disconnect()
-                raise Exception("Сессия из TData недействительна или истекла.")
-
             session_string = client.session.save()
-            await client.disconnect()
-            logger.info("[TData] Конвертация успешна")
-            return session_string, api_id, api_hash
 
-        except ImportError as e:
-            logger.error(f"[TData] ImportError при импорте opentele: {e}")
-            raise Exception(
-                f"Ошибка импорта opentele: {e}. "
-                "Убедитесь что opentele==1.15.1 установлен."
-            )
+            # get_me() делает прямой API-вызов и возвращает пользователя
+            # (is_user_authorized может ошибаться для вручную собранных сессий)
+            try:
+                me = await client.get_me()
+            except Exception as me_err:
+                await client.disconnect()
+                raise Exception(f"Ошибка проверки сессии TData: {me_err}")
+
+            if me is None:
+                await client.disconnect()
+                raise Exception(
+                    "Сессия из TData недействительна или истекла. "
+                    "Убедитесь что аккаунт не был разлогинен."
+                )
+
+            phone = me.phone or str(me.id)
+            await client.disconnect()
+            logger.info(f"[TData] Конвертация успешна, аккаунт: +{phone}")
+            return session_string, api_id, api_hash, phone
+
         except Exception as e:
             logger.error(f"[TData] Ошибка: {e}")
             raise
