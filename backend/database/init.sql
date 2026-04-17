@@ -188,7 +188,6 @@ CREATE TABLE IF NOT EXISTS user_settings (
     UNIQUE(session_id, setting_key)
 );
 
--- Таблица настроек пользователя (новая — FK на users, не на telegram_sessions)
 CREATE TABLE IF NOT EXISTS user_preferences (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,

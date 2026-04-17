@@ -114,6 +114,29 @@ async def debug_routes():
             })
     return {"total": len(routes), "routes": sorted(routes, key=lambda r: r["path"])}
 
+
+@app.get("/debug/db")
+async def debug_db():
+    """Диагностика БД: список таблиц и содержимое user_preferences"""
+    try:
+        tables = await db.fetch(
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"
+        )
+        table_names = [t["tablename"] for t in tables]
+
+        prefs = []
+        if "user_preferences" in table_names:
+            rows = await db.fetch("SELECT user_id, setting_key, setting_value FROM user_preferences LIMIT 50")
+            prefs = [dict(r) for r in rows]
+
+        return {
+            "tables": table_names,
+            "user_preferences_exists": "user_preferences" in table_names,
+            "user_preferences_rows": prefs,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/health")
 async def health_check():
     """Проверка здоровья сервиса"""
