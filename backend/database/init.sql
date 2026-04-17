@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS conversation_embeddings (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Таблица настроек пользователя
+-- Таблица настроек пользователя (старая — оставлена для совместимости)
 CREATE TABLE IF NOT EXISTS user_settings (
     id SERIAL PRIMARY KEY,
     session_id INTEGER REFERENCES telegram_sessions(id) ON DELETE CASCADE,
@@ -186,6 +186,16 @@ CREATE TABLE IF NOT EXISTS user_settings (
     setting_value JSONB NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(session_id, setting_key)
+);
+
+-- Таблица настроек пользователя (новая — FK на users, не на telegram_sessions)
+CREATE TABLE IF NOT EXISTS user_preferences (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    setting_key TEXT NOT NULL,
+    setting_value JSONB NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, setting_key)
 );
 
 

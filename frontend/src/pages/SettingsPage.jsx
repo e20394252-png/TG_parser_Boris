@@ -42,6 +42,7 @@ export default function SettingsPage() {
     const [loading,     setLoading]     = useState(true);
     const [savingKey,   setSavingKey]   = useState(null);   // key being saved
     const [savedKey,    setSavedKey]    = useState(null);
+    const [saveError,   setSaveError]   = useState('');
     const [menuSaving,  setMenuSaving]  = useState(false);
     const [menuSaved,   setMenuSaved]   = useState(false);
     const importRef = useRef();
@@ -131,12 +132,15 @@ export default function SettingsPage() {
 
     const handleSave = async (key, newVal) => {
         setSavingKey(key);
+        setSaveError('');
         try {
             await settingsAPI.update({ key, value: newVal });
             setSettings(prev => ({ ...prev, [key]: newVal }));
             setSavedKey(key);
             setTimeout(() => setSavedKey(null), 2000);
         } catch (e) {
+            const msg = e.response?.data?.detail || e.message || 'Неизвестная ошибка';
+            setSaveError(`Ошибка сохранения [${key}]: ${msg}`);
             console.error('Ошибка сохранения:', e);
         } finally {
             setSavingKey(null);
@@ -215,6 +219,19 @@ export default function SettingsPage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                {/* ── Ошибка сохранения (диагностика) ── */}
+                {saveError && (
+                    <div style={{
+                        padding: '12px 16px', background: 'rgba(255,0,128,0.1)',
+                        border: '1px solid var(--neon-pink)', borderRadius: 10,
+                        color: 'var(--neon-pink)', fontSize: '0.85rem',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    }}>
+                        <span>⚠️ {saveError}</span>
+                        <button onClick={() => setSaveError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--neon-pink)', fontSize: '1rem' }}>✕</button>
+                    </div>
+                )}
 
                 {/* ── Общие ── */}
                 <motion.div className="card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
