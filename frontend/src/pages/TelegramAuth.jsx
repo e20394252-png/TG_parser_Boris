@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, Key, Lock, CheckCircle, FolderOpen, Upload, AlertTriangle } from 'lucide-react';
+import { Phone, Key, Lock, CheckCircle, FolderOpen, Upload, AlertTriangle, HeartPulse, RefreshCw, ShieldAlert, ShieldOff, Clock } from 'lucide-react';
 import { authAPI, settingsAPI } from '../utils/api';
 
 /* ── Стили для drag-and-drop зоны ── */
@@ -48,6 +48,31 @@ export default function TelegramAuth() {
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+
+    // ─── Health check state: Map<sessionId, {status, message, user_info, loading}> ───
+    const [healthMap, setHealthMap] = useState({});
+
+    const handleCheckHealth = async (session) => {
+        setHealthMap(prev => ({ ...prev, [session.id]: { loading: true } }));
+        try {
+            const res = await authAPI.checkHealth(session.id);
+            setHealthMap(prev => ({ ...prev, [session.id]: { ...res.data, loading: false } }));
+            // Если статус изменился — перезагружаем список сессий
+            if (['banned', 'deactivated', 'session_expired'].includes(res.data.status)) {
+                loadSessions();
+            }
+        } catch (err) {
+            setHealthMap(prev => ({
+                ...prev,
+                [session.id]: {
+                    loading: false,
+                    status: 'error',
+                    message: err.response?.data?.detail || 'Ошибка соединения',
+                    user_info: null,
+                },
+            }));
+        }
+    };
 
     // Загружаем сессии и настройку tdata_enabled
     useEffect(() => {
@@ -433,7 +458,9 @@ export default function TelegramAuth() {
                             </p>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                {sessions.map(session => (
+                                {sessions.map(session => {
+                                    const h = healthMap[session.id];
+                                    return (
                                     <div key={session.id} style={{
                                         padding: 16,
                                         background: 'var(--bg-darker)',
@@ -452,6 +479,34 @@ export default function TelegramAuth() {
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', gap: 8 }}>
+                                                {/* ── Кнопка проверки ── */}
+                                                <button
+                                                    id={`health-check-btn-${session.id}`}
+                                                    onClick={() => handleCheckHealth(session)}
+                                                    disabled={h?.loading}
+                                                    title="Проверить работоспособность аккаунта"
+                                                    style={{
+                                                        padding: '8px 12px',
+                                                        fontSize: '0.8rem',
+                                                        background: 'rgba(0,212,255,0.1)',
+                                                        border: '1px solid rgba(0,212,255,0.4)',
+                                                        color: 'var(--neon-cyan)',
+                                                        borderRadius: 4,
+                                                        cursor: h?.loading ? 'not-allowed' : 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 5,
+                                                        transition: 'all 0.2s',
+                                                        opacity: h?.loading ? 0.7 : 1,
+                                                    }}
+                                                    onMouseEnter={e => !h?.loading && (e.currentTarget.style.background = 'rgba(0,212,255,0.2)')}
+                                                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,212,255,0.1)')}
+                                                >
+                                                    {h?.loading
+                                                        ? <><div className="spinner" style={{ width: 13, height: 13 }} /> Проверка...</>
+                                                        : <><HeartPulse size={14} /> Проверить</>}
+                                                </button>
+
                                                 <button className="btn btn-danger" onClick={() => handleLogout(session.id)}
                                                     style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
                                                     Выйти
@@ -478,8 +533,45 @@ export default function TelegramAuth() {
                                                 )}
                                             </div>
                                         </div>
+
+                                        {/* ── Результат проверки ── */}
+                                        <AnimatePresence>
+                                        {h && !h.loading && h.status && (
+                                            <motion.div
+                                                key={`health-${session.id}-${h.status}`}
+                                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+                                                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                transition={{ duration: 0.22 }}
+                                                style={{
+                                                    borderRadius: 8,
+                                                    padding: '10px 14px',
+                                                    fontSize: '0.83rem',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: 4,
+                                                    overflow: 'hidden',
+                                                    ...healthStyle(h.status),
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600 }}>
+                                                    {healthIcon(h.status)}
+                                                    {healthLabel(h.status)}
+                                                </div>
+                                                <div style={{ opacity: 0.85 }}>{h.message}</div>
+                                                {h.user_info && (
+                                                    <div style={{ marginTop: 4, fontSize: '0.8rem', opacity: 0.7 }}>
+                                                        👤 {h.user_info.first_name} {h.user_info.last_name}
+                                                        {h.user_info.username && ` · @${h.user_info.username}`}
+                                                        {` · ID: ${h.user_info.id}`}
+                                                    </div>
+                                                )}
+                                            </motion.div>
+                                        )}
+                                        </AnimatePresence>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </motion.div>
@@ -563,4 +655,46 @@ function ErrorBox({ children }) {
             {children}
         </div>
     );
+}
+
+/* ── Health check helpers ── */
+const HEALTH_CONFIG = {
+    ok:              { bg: 'rgba(0,255,128,0.08)',  border: 'rgba(0,255,128,0.35)',  color: '#00ff80' },
+    restricted:      { bg: 'rgba(255,165,0,0.08)',  border: 'rgba(255,165,0,0.4)',   color: '#ffaa00' },
+    banned:          { bg: 'rgba(255,0,80,0.1)',    border: 'rgba(255,0,80,0.5)',    color: '#ff4060' },
+    deactivated:     { bg: 'rgba(255,0,80,0.1)',    border: 'rgba(255,0,80,0.5)',    color: '#ff4060' },
+    session_expired: { bg: 'rgba(255,200,0,0.08)', border: 'rgba(255,200,0,0.4)',   color: '#ffc800' },
+    flood_wait:      { bg: 'rgba(255,165,0,0.08)', border: 'rgba(255,165,0,0.4)',   color: '#ffaa00' },
+    error:           { bg: 'rgba(255,0,128,0.08)', border: 'rgba(255,0,128,0.4)',   color: 'var(--neon-pink)' },
+};
+
+function healthStyle(status) {
+    const c = HEALTH_CONFIG[status] || HEALTH_CONFIG.error;
+    return { background: c.bg, border: `1px solid ${c.border}`, color: c.color };
+}
+
+function healthIcon(status) {
+    const s = 14;
+    switch (status) {
+        case 'ok':              return <CheckCircle size={s} />;
+        case 'restricted':      return <ShieldAlert size={s} />;
+        case 'banned':          return <ShieldOff size={s} />;
+        case 'deactivated':     return <ShieldOff size={s} />;
+        case 'session_expired': return <RefreshCw size={s} />;
+        case 'flood_wait':      return <Clock size={s} />;
+        default:                return <AlertTriangle size={s} />;
+    }
+}
+
+function healthLabel(status) {
+    const labels = {
+        ok:              '✅ Аккаунт в норме',
+        restricted:      '⚠️ Ограничен',
+        banned:          '🚫 Заблокирован Telegram',
+        deactivated:     '💀 Аккаунт удалён',
+        session_expired: '🔑 Сессия истекла',
+        flood_wait:      '⏳ Flood Wait',
+        error:           '❌ Ошибка проверки',
+    };
+    return labels[status] || 'Неизвестно';
 }

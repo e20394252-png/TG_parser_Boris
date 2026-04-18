@@ -376,6 +376,63 @@ async def import_tdata(
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+@router.get("/telegram/{session_id}/health")
+async def check_session_health(
+    session_id: int,
+    user_id: int = Depends(require_user_id),
+):
+    """
+    Проверяет работоспособность Telegram-аккаунта:
+    жив ли он, не забанен ли, действительна ли сессия.
+    """
+    try:
+        # Проверяем владельца сессии и получаем данные
+        session = await db.fetchrow(
+            """SELECT id, user_id, api_id, api_hash, session_string
+               FROM telegram_sessions WHERE id = $1""",
+            session_id,
+        )
+        if session is None:
+            raise HTTPException(status_code=404, detail="Сессия не найдена")
+        if session["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Доступ запрещён")
+
+        if not session["session_string"]:
+            return {
+                "status": "session_expired",
+                "message": "Сессия не инициализирована. Требуется повторная авторизация.",
+                "user_info": None,
+            }
+
+        result = await telegram_manager.check_account_health(
+            api_id=int(session["api_id"]),
+            api_hash=session["api_hash"],
+            session_string=session["session_string"],
+        )
+
+        # Если аккаунт забанен/удалён/сессия протухла — деактивируем в БД
+        if result["status"] in ("banned", "deactivated", "session_expired"):
+            await db.execute(
+                "UPDATE telegram_sessions SET is_active = false WHERE id = $1",
+                session_id,
+            )
+            logger.info(
+                f"[HealthCheck] Сессия {session_id} деактивирована "
+                f"(статус: {result['status']})"
+            )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[HealthCheck] Ошибка для сессии {session_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при проверке: {str(e)}",
+        )
+
+
 def _find_tdata_folder(root: str) -> Optional[str]:
     """
     Ищет папку tdata внутри распакованного архива.

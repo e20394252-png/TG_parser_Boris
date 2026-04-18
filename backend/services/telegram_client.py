@@ -3,6 +3,16 @@
 """
 from telethon import TelegramClient
 from telethon.sessions import StringSession
+from telethon.errors import (
+    UserDeactivatedBanError,
+    UserDeactivatedError,
+    AuthKeyUnregisteredError,
+    AuthKeyDuplicatedError,
+    SessionRevokedError,
+    SessionExpiredError,
+    FloodWaitError,
+    PhoneNumberBannedError,
+)
 from typing import Dict, Optional
 import os
 import logging
@@ -216,3 +226,108 @@ class TelegramClientManager:
 
         except Exception as e:
             raise Exception(f"Ошибка при отправке сообщения: {str(e)}")
+
+    # ─────────────────────────────────────────────────────────────
+    # Account health check
+    # ─────────────────────────────────────────────────────────────
+
+    async def check_account_health(self, api_id: int, api_hash: str, session_string: str) -> dict:
+        """
+        Проверяет состояние Telegram-аккаунта.
+
+        Возможные статусы:
+          • ok          — аккаунт жив, сессия действительна
+          • banned      — аккаунт заблокирован Telegram
+          • deactivated — аккаунт удалён
+          • session_expired — сессия отозвана / истекла (нужна повторная авторизация)
+          • flood_wait  — временный FloodWait, попробуйте позже
+          • error       — неизвестная ошибка
+
+        Возвращает dict:
+          {
+            "status": "ok" | "banned" | "deactivated" | "session_expired" | "flood_wait" | "error",
+            "message": "...",
+            "user_info": {"id": ..., "username": ..., "first_name": ...} | None
+          }
+        """
+        client = None
+        try:
+            client = TelegramClient(
+                StringSession(session_string),
+                api_id,
+                api_hash,
+            )
+            await client.connect()
+
+            me = await client.get_me()
+
+            if me is None:
+                return {
+                    "status": "session_expired",
+                    "message": "Сессия истекла или недействительна. Требуется повторная авторизация.",
+                    "user_info": None,
+                }
+
+            user_info = {
+                "id": me.id,
+                "username": me.username,
+                "first_name": me.first_name or "",
+                "last_name": me.last_name or "",
+                "phone": me.phone,
+                "restricted": getattr(me, "restricted", False),
+                "restriction_reason": [
+                    r.reason for r in (getattr(me, "restriction_reason", None) or [])
+                ],
+            }
+
+            if user_info["restricted"]:
+                return {
+                    "status": "restricted",
+                    "message": f"Аккаунт ограничен Telegram: {', '.join(user_info['restriction_reason']) or 'причина неизвестна'}",
+                    "user_info": user_info,
+                }
+
+            return {
+                "status": "ok",
+                "message": "Аккаунт активен и работает нормально.",
+                "user_info": user_info,
+            }
+
+        except (UserDeactivatedBanError, PhoneNumberBannedError):
+            return {
+                "status": "banned",
+                "message": "Аккаунт заблокирован Telegram (spam/ban).",
+                "user_info": None,
+            }
+        except UserDeactivatedError:
+            return {
+                "status": "deactivated",
+                "message": "Аккаунт был удалён или деактивирован.",
+                "user_info": None,
+            }
+        except (AuthKeyUnregisteredError, AuthKeyDuplicatedError,
+                SessionRevokedError, SessionExpiredError):
+            return {
+                "status": "session_expired",
+                "message": "Сессия отозвана или истекла. Требуется повторная авторизация.",
+                "user_info": None,
+            }
+        except FloodWaitError as e:
+            return {
+                "status": "flood_wait",
+                "message": f"FloodWait: слишком много запросов. Подождите {e.seconds} секунд.",
+                "user_info": None,
+            }
+        except Exception as e:
+            logger.warning(f"[HealthCheck] Неизвестная ошибка: {e}")
+            return {
+                "status": "error",
+                "message": f"Ошибка при проверке: {str(e)}",
+                "user_info": None,
+            }
+        finally:
+            if client:
+                try:
+                    await client.disconnect()
+                except Exception:
+                    pass

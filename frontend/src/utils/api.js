@@ -40,6 +40,7 @@ export const authAPI = {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 120000, // 2 минуты — конвертация может занять время
     }),
+    checkHealth: (sessionId) => api.get(`/auth/telegram/${sessionId}/health`),
 };
 
 // Login / password management
