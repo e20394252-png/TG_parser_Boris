@@ -389,7 +389,8 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "https://telegram-parser-frontend.onren
 
 class BotInitResponse(BaseModel):
     state: str
-    tg_url: str
+    tg_url: str       # tg:// — открывает Telegram Desktop напрямую
+    fallback_url: str  # https://t.me/ — запасной вариант для мобильных
 
 
 @router.get("/bot/init", response_model=BotInitResponse)
@@ -414,9 +415,12 @@ async def bot_auth_init():
         state,
     )
 
-    tg_url = f"https://t.me/{BOT_NAME}?start={state}"
+    # tg:// — открывает установленный Telegram Desktop/Mobile без браузера
+    tg_url       = f"tg://resolve?domain={BOT_NAME}&start={state}"
+    fallback_url = f"https://t.me/{BOT_NAME}?start={state}"
+
     logger.info(f"[BotAuth] Init: state={state}")
-    return BotInitResponse(state=state, tg_url=tg_url)
+    return BotInitResponse(state=state, tg_url=tg_url, fallback_url=fallback_url)
 
 
 class BotCheckResponse(BaseModel):

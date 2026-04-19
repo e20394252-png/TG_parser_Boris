@@ -12,9 +12,10 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
 
     // Bot auth state
-    const [botState,   setBotState]   = useState(null);   // UUID state токен
-    const [botStatus,  setBotStatus]  = useState('idle'); // 'idle'|'waiting'|'expired'|'error'
-    const [botMsg,     setBotMsg]     = useState('');
+    const [botState,       setBotState]       = useState(null);
+    const [botStatus,      setBotStatus]      = useState('idle'); // 'idle'|'loading'|'waiting'|'expired'|'error'
+    const [botMsg,         setBotMsg]         = useState('');
+    const [botFallbackUrl, setBotFallbackUrl] = useState('');  // https://t.me/... запасной вариант
     const pollRef = useRef(null);
 
     const handleLogin = async (e) => {
@@ -52,13 +53,14 @@ export default function LoginPage() {
         stopPolling();
         try {
             const res = await botAuthAPI.init();
-            const { state, tg_url } = res.data;
+            const { state, tg_url, fallback_url } = res.data;
             setBotState(state);
+            setBotFallbackUrl(fallback_url || '');
             setBotStatus('waiting');
-            setBotMsg('Ожидаем подтверждения в боте...');
+            setBotMsg('');
 
-            // Open Telegram
-            window.open(tg_url, '_blank');
+            // Пробуем открыть через tg:// (Telegram Desktop/Mobile без браузера)
+            window.location.href = tg_url;
 
             // Start polling every 2s
             const deadline = Date.now() + 10 * 60 * 1000; // 10 min
@@ -183,9 +185,34 @@ export default function LoginPage() {
                 {/* Bot auth status messages */}
                 {botStatus === 'waiting' && (
                     <div style={styles.botInfoBox}>
-                        🤖 Открылся бот — нажмите <strong>Start</strong> и вернитесь.
-                        <br />
-                        <span style={{ fontSize: '0.78rem', opacity: 0.7 }}>Страница обновится автоматически.</span>
+                        <div>🤖 Открывается <strong>Telegram</strong> — нажмите <strong>Start</strong> и вернитесь.</div>
+                        <div style={{ fontSize: '0.78rem', opacity: 0.7, marginTop: 4 }}>Страница обновится автоматически.</div>
+                        {botFallbackUrl && (
+                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(34,158,217,0.25)' }}>
+                                <div style={{ fontSize: '0.78rem', opacity: 0.75, marginBottom: 6 }}>Не открылось? Попробуйте вручную:</div>
+                                <a
+                                    href={botFallbackUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{ color: '#7dd3fc', fontSize: '0.78rem', wordBreak: 'break-all', textDecoration: 'underline' }}
+                                >
+                                    Открыть бот в браузере ↗
+                                </a>
+                                <div style={{ marginTop: 8 }}>
+                                    <button
+                                        onClick={() => navigator.clipboard?.writeText(botFallbackUrl)}
+                                        style={{
+                                            fontSize: '0.72rem', padding: '3px 10px',
+                                            background: 'rgba(34,158,217,0.2)',
+                                            border: '1px solid rgba(34,158,217,0.4)',
+                                            borderRadius: 6, color: '#7dd3fc', cursor: 'pointer',
+                                        }}
+                                    >
+                                        📋 Скопировать ссылку
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
                 {(botStatus === 'expired' || botStatus === 'error') && (
