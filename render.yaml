@@ -58,6 +58,8 @@ services:
         sync: false
       - key: ALLOWED_TELEGRAM_IDS
         sync: false
+      - key: FRONTEND_URL
+        value: https://telegram-parser-frontend.onrender.com
       - key: JWT_SECRET
         generateValue: true
       - key: SEED_USERS

@@ -16,6 +16,7 @@ telethon==1.24.0
 cryptg==0.4.0
 opentele==1.15.1
 pyqt5==5.15.9
+aiogram==3.10.0
 
 # AI & ML (временно отключены для теста)
 # openai==1.10.0

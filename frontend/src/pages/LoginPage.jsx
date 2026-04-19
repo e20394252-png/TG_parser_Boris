@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { botAuthAPI } from '../utils/api';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://tg-parser-boris.onrender.com/api';
 
@@ -9,6 +10,12 @@ export default function LoginPage() {
     const [loading,  setLoading]  = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+
+    // Bot auth state
+    const [botState,   setBotState]   = useState(null);   // UUID state токен
+    const [botStatus,  setBotStatus]  = useState('idle'); // 'idle'|'waiting'|'expired'|'error'
+    const [botMsg,     setBotMsg]     = useState('');
+    const pollRef = useRef(null);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -27,6 +34,64 @@ export default function LoginPage() {
             setError(e.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // ── Bot auth ──
+    const stopPolling = () => {
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+
+    // Cleanup on unmount
+    useEffect(() => () => stopPolling(), []);
+
+    const handleBotLogin = async () => {
+        setBotStatus('loading');
+        setBotMsg('');
+        setError('');
+        stopPolling();
+        try {
+            const res = await botAuthAPI.init();
+            const { state, tg_url } = res.data;
+            setBotState(state);
+            setBotStatus('waiting');
+            setBotMsg('Ожидаем подтверждения в боте...');
+
+            // Open Telegram
+            window.open(tg_url, '_blank');
+
+            // Start polling every 2s
+            const deadline = Date.now() + 10 * 60 * 1000; // 10 min
+            pollRef.current = setInterval(async () => {
+                if (Date.now() > deadline) {
+                    stopPolling();
+                    setBotStatus('expired');
+                    setBotMsg('Ссылка истекла. Попробуйте ещё раз.');
+                    return;
+                }
+                try {
+                    const chk = await botAuthAPI.check(state);
+                    const { status: s, token, user } = chk.data;
+                    if (s === 'confirmed' && token) {
+                        stopPolling();
+                        login(token, user);
+                    } else if (s === 'expired' || s === 'not_found') {
+                        stopPolling();
+                        setBotStatus('expired');
+                        setBotMsg('Ссылка истекла. Попробуйте ещё раз.');
+                    }
+                } catch (err) {
+                    if (err.response?.status === 403) {
+                        stopPolling();
+                        setBotStatus('error');
+                        setBotMsg('Доступ запрещён. Ваш Telegram ID не в списке разрешённых.');
+                    }
+                    // other errors — keep polling
+                }
+            }, 2000);
+        } catch (err) {
+            setBotStatus('error');
+            setBotMsg(err.response?.data?.detail || 'Ошибка соединения с сервером');
         }
     };
 
@@ -78,6 +143,53 @@ export default function LoginPage() {
 
                 {error && (
                     <div style={styles.errorBox}>{error}</div>
+                )}
+
+                {/* Divider */}
+                <div style={styles.divider}>
+                    <span style={styles.dividerLine} />
+                    <span style={styles.dividerText}>или</span>
+                    <span style={styles.dividerLine} />
+                </div>
+
+                {/* Telegram Bot Login Button */}
+                <button
+                    id="telegram-bot-login-btn"
+                    onClick={handleBotLogin}
+                    disabled={botStatus === 'loading' || botStatus === 'waiting'}
+                    style={{
+                        ...styles.tgButton,
+                        opacity: (botStatus === 'loading' || botStatus === 'waiting') ? 0.75 : 1,
+                        cursor: (botStatus === 'loading' || botStatus === 'waiting') ? 'not-allowed' : 'pointer',
+                    }}
+                >
+                    {botStatus === 'loading' && (
+                        <span style={styles.spinner} />
+                    )}
+                    {botStatus === 'waiting' && (
+                        <span style={{ ...styles.spinnerTg }} />
+                    )}
+                    {botStatus !== 'loading' && botStatus !== 'waiting' && (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white" style={{ flexShrink: 0 }}>
+                            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-2.01 9.478c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.19 14.27l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.626.316z"/>
+                        </svg>
+                    )}
+                    {botStatus === 'waiting'
+                        ? 'Ожидаем подтверждения...'
+                        : 'Зарегистрироваться через Telegram'
+                    }
+                </button>
+
+                {/* Bot auth status messages */}
+                {botStatus === 'waiting' && (
+                    <div style={styles.botInfoBox}>
+                        🤖 Открылся бот — нажмите <strong>Start</strong> и вернитесь.
+                        <br />
+                        <span style={{ fontSize: '0.78rem', opacity: 0.7 }}>Страница обновится автоматически.</span>
+                    </div>
+                )}
+                {(botStatus === 'expired' || botStatus === 'error') && (
+                    <div style={styles.errorBox}>{botMsg}</div>
                 )}
 
                 <p style={styles.hint}>
@@ -207,5 +319,66 @@ const styles = {
     hint: {
         fontSize: '0.78rem', color: 'rgba(255,255,255,0.25)',
         margin: '16px 0 0', lineHeight: 1.5,
+    },
+
+    // ── Telegram bot login additions ──
+    divider: {
+        display: 'flex', alignItems: 'center', gap: 12,
+        margin: '20px 0 16px',
+    },
+    dividerLine: {
+        flex: 1, height: 1,
+        background: 'rgba(255,255,255,0.1)',
+        display: 'block',
+    },
+    dividerText: {
+        fontSize: '0.78rem', color: 'rgba(255,255,255,0.3)',
+        whiteSpace: 'nowrap',
+    },
+    tgButton: {
+        width: '100%',
+        padding: '13px 16px',
+        background: 'linear-gradient(135deg, #229ED9, #1a7abf)',
+        border: 'none',
+        borderRadius: 10,
+        color: '#fff',
+        fontSize: '0.97rem',
+        fontWeight: 700,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+        transition: 'opacity 0.2s, transform 0.15s',
+        letterSpacing: '0.01em',
+        boxShadow: '0 4px 20px rgba(34,158,217,0.35)',
+    },
+    spinner: {
+        display: 'inline-block',
+        width: 16, height: 16,
+        border: '2px solid rgba(255,255,255,0.3)',
+        borderTop: '2px solid #fff',
+        borderRadius: '50%',
+        animation: 'spin 0.7s linear infinite',
+        flexShrink: 0,
+    },
+    spinnerTg: {
+        display: 'inline-block',
+        width: 16, height: 16,
+        border: '2px solid rgba(255,255,255,0.4)',
+        borderTop: '2px solid #fff',
+        borderRadius: '50%',
+        animation: 'spin 0.7s linear infinite',
+        flexShrink: 0,
+    },
+    botInfoBox: {
+        marginTop: 12,
+        padding: '12px 14px',
+        background: 'rgba(34,158,217,0.12)',
+        border: '1px solid rgba(34,158,217,0.35)',
+        borderRadius: 10,
+        fontSize: '0.875rem',
+        color: 'rgba(160,220,255,0.95)',
+        lineHeight: 1.55,
+        textAlign: 'left',
     },
 };

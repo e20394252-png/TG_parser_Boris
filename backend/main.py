@@ -23,6 +23,12 @@ async def lifespan(app: FastAPI):
     # Создаём пользователей по умолчанию
     from services.user_seed import seed_users
     await seed_users()
+
+    # Запускаем Telegram Auth Bot (long-polling)
+    from services.auth_bot import start_bot
+    import asyncio
+    bot_task = asyncio.create_task(start_bot())
+    logger.info("🤖 Auth Bot task scheduled")
     
     # Запускаем мониторинг для активных сессий
     try:
@@ -45,6 +51,14 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("🛑 Shutting down...")
+    # Останавливаем Auth Bot
+    try:
+        bot_task.cancel()
+        await asyncio.gather(bot_task, return_exceptions=True)
+        logger.info("🤖 Auth Bot stopped")
+    except Exception as e:
+        logger.error(f"Ошибка при остановке бота: {e}")
+
     try:
         from services.message_monitor import monitor_service
         for session_id in list(monitor_service.active_monitors.keys()):

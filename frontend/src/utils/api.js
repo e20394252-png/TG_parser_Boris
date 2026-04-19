@@ -51,6 +51,12 @@ export const loginAPI = {
     login:           (data) => api.post('/login/password', data),
 };
 
+// Bot auth (Telegram deep-link login)
+export const botAuthAPI = {
+    init:  ()            => api.get('/login/bot/init'),
+    check: (state)       => api.get('/login/bot/check', { params: { state } }),
+};
+
 // User management
 export const usersAPI = {
     list:   ()          => api.get('/login/users'),

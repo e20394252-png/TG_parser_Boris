@@ -1,11 +1,12 @@
 """
-Роутер для входа в сервис через Telegram Login Widget.
+Роутер для входа в сервис через Telegram Login Widget или Telegram Bot (deep link).
 Документация виджета: https://core.telegram.org/widgets/login
 """
 import hashlib
 import hmac
 import time
 import os
+import uuid
 import logging
 from typing import Optional
 
@@ -378,3 +379,130 @@ async def delete_user(
     logger.info(f"🗑 Deleted user_id={user_id} by admin {current_user.get('username')}")
     return {"success": True}
 
+
+# ──────────────── Telegram Bot Deep-Link Auth ────────────────
+
+BOT_NAME = os.getenv("TELEGRAM_BOT_NAME", "tg_parser_auth_bot")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://telegram-parser-frontend.onrender.com")
+
+
+class BotInitResponse(BaseModel):
+    state: str
+    tg_url: str
+
+
+@router.get("/bot/init", response_model=BotInitResponse)
+async def bot_auth_init():
+    """
+    Генерирует одноразовый state-токен (UUID) и возвращает deep-link на бота.
+    Frontend перенаправляет пользователя по этой ссылке, затем опрашивает /bot/check.
+    """
+    from database.database import db
+
+    # Чистим устаревшие записи (старше 15 минут)
+    await db.execute(
+        "DELETE FROM tg_bot_auth_states WHERE expires_at < NOW()"
+    )
+
+    state = str(uuid.uuid4())
+    await db.execute(
+        """
+        INSERT INTO tg_bot_auth_states (state)
+        VALUES ($1::uuid)
+        """,
+        state,
+    )
+
+    tg_url = f"https://t.me/{BOT_NAME}?start={state}"
+    logger.info(f"[BotAuth] Init: state={state}")
+    return BotInitResponse(state=state, tg_url=tg_url)
+
+
+class BotCheckResponse(BaseModel):
+    status: str          # "pending" | "confirmed" | "expired" | "not_found"
+    token: Optional[str] = None
+    user: Optional[dict] = None
+
+
+@router.get("/bot/check", response_model=BotCheckResponse)
+async def bot_auth_check(state: str):
+    """
+    Проверяет статус state-токена.
+    Если confirmed=true — выдаёт JWT и удаляет запись.
+    """
+    from database.database import db
+
+    row = await db.fetchrow(
+        """
+        SELECT confirmed, tg_username, tg_user_id, expires_at
+        FROM tg_bot_auth_states
+        WHERE state = $1::uuid
+        """,
+        state,
+    )
+
+    if row is None:
+        return BotCheckResponse(status="not_found")
+
+    # Проверяем TTL
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    expires = row["expires_at"]
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if now > expires:
+        await db.execute("DELETE FROM tg_bot_auth_states WHERE state = $1::uuid", state)
+        return BotCheckResponse(status="expired")
+
+    if not row["confirmed"]:
+        return BotCheckResponse(status="pending")
+
+    # ── Пользователь подтвердил ──
+    tg_username = row["tg_username"] or f"id{row['tg_user_id']}"
+    tg_user_id  = row["tg_user_id"]
+
+    # Проверяем whitelist (если задан)
+    if ALLOWED_IDS and tg_user_id not in ALLOWED_IDS:
+        await db.execute("DELETE FROM tg_bot_auth_states WHERE state = $1::uuid", state)
+        logger.warning(f"[BotAuth] Unauthorized TG ID: {tg_user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Доступ запрещён. Ваш Telegram ID не в списке разрешённых."
+        )
+
+    # Уpsert-пользователь в таблицу users по tg_username
+    # (чтобы работал require_user_id и другие зависимости)
+    existing_user_id = await db.fetchval(
+        "SELECT id FROM users WHERE username = $1", tg_username
+    )
+    if existing_user_id is None:
+        existing_user_id = await db.fetchval(
+            """
+            INSERT INTO users (username, password_hash)
+            VALUES ($1, 'tg_bot_no_password')
+            RETURNING id
+            """,
+            tg_username,
+        )
+        logger.info(f"[BotAuth] Created new user '{tg_username}' (id={existing_user_id})")
+
+    # Обновляем last_login
+    await db.execute(
+        "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1",
+        existing_user_id,
+    )
+
+    # Удаляем одноразовый state
+    await db.execute("DELETE FROM tg_bot_auth_states WHERE state = $1::uuid", state)
+
+    token = create_jwt(existing_user_id, tg_username, tg_username, "user")
+    user_info = {
+        "id":         existing_user_id,
+        "first_name": tg_username,
+        "last_name":  None,
+        "username":   tg_username,
+        "photo_url":  None,
+        "role":       "user",
+    }
+    logger.info(f"[BotAuth] Confirmed: @{tg_username} (tg_id={tg_user_id})")
+    return BotCheckResponse(status="confirmed", token=token, user=user_info)
