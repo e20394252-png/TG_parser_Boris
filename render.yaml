@@ -52,9 +52,9 @@ services:
         sync: false
       - key: GOOGLE_AI_API_KEY
         sync: false
-      - key: TELEGRAM_BOT_TOKEN
+      - key: TELEGRAM_AUTH_BOT_TOKEN
         sync: false
-      - key: TELEGRAM_BOT_NAME
+      - key: TELEGRAM_AUTH_BOT_NAME
         sync: false
       - key: ALLOWED_TELEGRAM_IDS
         sync: false

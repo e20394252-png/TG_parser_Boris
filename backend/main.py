@@ -24,6 +24,29 @@ async def lifespan(app: FastAPI):
     from services.user_seed import seed_users
     await seed_users()
 
+    # Авто-миграция: создаём таблицу для Bot Auth (если ещё нет)
+    try:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS tg_bot_auth_states (
+                id          SERIAL PRIMARY KEY,
+                state       UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+                tg_username TEXT,
+                tg_user_id  BIGINT,
+                confirmed   BOOLEAN DEFAULT false,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at  TIMESTAMP DEFAULT (CURRENT_TIMESTAMP + INTERVAL '10 minutes')
+            )
+        """)
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tg_bot_auth_states_state ON tg_bot_auth_states(state)"
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tg_bot_auth_states_expires ON tg_bot_auth_states(expires_at)"
+        )
+        logger.info("✅ tg_bot_auth_states table ready")
+    except Exception as e:
+        logger.error(f"Ошибка авто-миграции tg_bot_auth_states: {e}")
+
     # Запускаем Telegram Auth Bot (long-polling)
     from services.auth_bot import start_bot
     import asyncio

@@ -382,7 +382,8 @@ async def delete_user(
 
 # ──────────────── Telegram Bot Deep-Link Auth ────────────────
 
-BOT_NAME = os.getenv("TELEGRAM_BOT_NAME", "tg_parser_auth_bot")
+BOT_TOKEN = os.getenv("TELEGRAM_AUTH_BOT_TOKEN", "")
+BOT_NAME = os.getenv("TELEGRAM_AUTH_BOT_NAME", "tg_parser_auth_bot")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://telegram-parser-frontend.onrender.com")
 
 

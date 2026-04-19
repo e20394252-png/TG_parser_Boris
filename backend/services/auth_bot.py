@@ -19,7 +19,7 @@ from aiogram.filters import CommandStart, CommandObject
 
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN   = os.getenv("TELEGRAM_BOT_TOKEN", "")
+BOT_TOKEN    = os.getenv("TELEGRAM_AUTH_BOT_TOKEN", "")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://telegram-parser-frontend.onrender.com")
 
 # Глобальный объект бота — используется и в роутере для проверки
