@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, Key, Lock, CheckCircle, FolderOpen, Upload, AlertTriangle, HeartPulse, RefreshCw, ShieldAlert, ShieldOff, Clock } from 'lucide-react';
+import { Phone, Key, Lock, CheckCircle, FolderOpen, Upload, AlertTriangle, HeartPulse, RefreshCw, ShieldAlert, ShieldOff, Clock, Clipboard, ClipboardCheck, Wand2, Wifi } from 'lucide-react';
 import { authAPI, settingsAPI } from '../utils/api';
 
 /* ── Стили для drag-and-drop зоны ── */
@@ -597,13 +597,23 @@ export default function TelegramAuth() {
                                     <li><span className="auth-guide-num">3</span>
                                         <div>Нажмите <b>«API development tools»</b></div></li>
                                     <li><span className="auth-guide-num">4</span>
-                                        <div>Заполните форму: придумайте любое <b>название</b> и <b>короткое имя</b> приложения
-                                            (например <code style={{ background: 'var(--bg-darker)', padding: '1px 6px', borderRadius: 4 }}>myparser</code>),
-                                            нажмите <b>«Create application»</b></div></li>
+                                        <div>Заполните форму с помощью генератора ниже ↓ и нажмите <b>«Create application»</b></div></li>
                                     <li><span className="auth-guide-num">5</span>
                                         <div>Скопируйте <b>App api_id</b> (число) и <b>App api_hash</b> (строка из 32 символов)
                                             и вставьте их в форму слева</div></li>
                                 </ol>
+
+                                {/* VPN предупреждение */}
+                                <div style={{ marginTop: 16, padding: '10px 14px',
+                                    background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.3)',
+                                    borderRadius: 8, fontSize: '0.83rem', color: 'rgba(0,212,255,0.9)',
+                                    display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                                    <Wifi size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                                    <span><b>VPN:</b> Обязательно выключите VPN или установите VPN <b>той же страны</b>, что и ваш номер телефона. Telegram сверяет IP и регион.</span>
+                                </div>
+
+                                {/* Генератор полей */}
+                                <ApiFormGenerator />
                             </>
                         )}
 
@@ -636,6 +646,19 @@ export default function TelegramAuth() {
                             <span style={{ flexShrink: 0 }}>⚠️</span>
                             <span>Никому не передавайте API Hash и session string — это равносильно полному доступу к аккаунту.</span>
                         </div>
+
+                        <div style={{ marginTop: 12, padding: '12px 14px',
+                            background: 'rgba(255,0,128,0.08)', border: '1px solid rgba(255,0,128,0.35)',
+                            borderRadius: 6, fontSize: '0.85rem', color: 'rgba(255,0,128,0.9)',
+                            display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                            <span style={{ flexShrink: 0 }}>🚨</span>
+                            <span>Если система постоянно выдаёт <b>Error</b> — свяжитесь с{' '}
+                                <a href="https://t.me/AndrewSochy" target="_blank" rel="noreferrer"
+                                    style={{ color: 'var(--neon-cyan)', textDecoration: 'none', fontWeight: 700 }}>
+                                    @AndrewSochy
+                                </a>{' '}
+                                и получите доступ вручную.</span>
+                        </div>
                     </motion.div>
 
                 </div>
@@ -653,6 +676,182 @@ function ErrorBox({ children }) {
             marginBottom: 20, color: 'var(--neon-pink)',
         }}>
             {children}
+        </div>
+    );
+}
+
+/* ── Генератор полей для my.telegram.org ── */
+function toUpperCamelCase(str) {
+    // Берём только латинские буквы, капитализируем каждое слово, убираем всё лишнее
+    return str
+        .replace(/[^a-zA-Zа-яёА-ЯЁ\s]/g, '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(w => {
+            // Транслитерация кириллицы → латиница (базовая)
+            const cyrillic = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ';
+            const latin    = 'abvgdeejzijklmnoprstufhccss_y_euyaABVGDEEJZIJKLMNOPRSTUFHCCSS_Y_EUYA';
+            let result = '';
+            for (const ch of w) {
+                const idx = cyrillic.indexOf(ch);
+                result += idx >= 0 ? latin[idx] : ch;
+            }
+            return result.charAt(0).toUpperCase() + result.slice(1);
+        })
+        .join('')
+        .replace(/[^a-zA-Z]/g, '') // окончательная зачистка
+        || 'MyTelegramApp';
+}
+
+const DESCRIPTIONS = [
+    (name) => `${name} is a personal Telegram automation tool for managing channels, monitoring messages, and automating routine tasks efficiently.`,
+    (name) => `${name} helps users automate their Telegram workflows including message parsing, account management, and channel monitoring at scale.`,
+    (name) => `Application ${name} provides flexible tools for Telegram account management, data collection and automated interaction with Telegram API.`,
+];
+
+function ApiFormGenerator() {
+    const [keyword, setKeyword] = useState('');
+    const [generated, setGenerated] = useState(null);
+    const [copied, setCopied] = useState({});
+
+    const generate = () => {
+        const base = keyword.trim() || 'MyApp';
+        const camel = toUpperCamelCase(base);
+        const descFn = DESCRIPTIONS[Math.floor(Math.random() * DESCRIPTIONS.length)];
+        setGenerated({
+            title:       camel,
+            short_name:  camel,
+            description: descFn(camel),
+            url:         'https://example.com',
+        });
+        setCopied({});
+    };
+
+    const copyField = (key, value) => {
+        navigator.clipboard.writeText(value).then(() => {
+            setCopied(prev => ({ ...prev, [key]: true }));
+            setTimeout(() => setCopied(prev => ({ ...prev, [key]: false })), 2000);
+        });
+    };
+
+    const fields = generated ? [
+        { key: 'title',       label: 'App title',   value: generated.title },
+        { key: 'short_name',  label: 'Short name',  value: generated.short_name },
+        { key: 'description', label: 'Description', value: generated.description },
+        { key: 'url',         label: 'URL',          value: generated.url },
+    ] : [];
+
+    return (
+        <div style={{ marginTop: 20 }}>
+            {/* Заголовок секции */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Wand2 size={16} color="var(--neon-cyan)" />
+                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--neon-cyan)' }}>
+                    Генератор полей формы
+                </span>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: 12 }}>
+                Введите любое слово на русском или английском — получите готовые поля, которые гарантированно проходят проверку Telegram.
+            </p>
+
+            {/* Инпут + кнопка */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <input
+                    id="api-gen-keyword"
+                    type="text"
+                    placeholder="Например: парсер, мой бот, tracker"
+                    value={keyword}
+                    onChange={e => setKeyword(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && generate()}
+                    style={{ flex: 1, fontSize: '0.88rem', padding: '8px 12px' }}
+                />
+                <button
+                    id="api-gen-btn"
+                    onClick={generate}
+                    className="btn btn-primary"
+                    style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                >
+                    <Wand2 size={14} /> Сгенерировать
+                </button>
+            </div>
+
+            {/* Результат */}
+            <AnimatePresence>
+            {generated && (
+                <motion.div
+                    key="gen-result"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                >
+                    {fields.map(({ key, label, value }) => (
+                        <div key={key} style={{
+                            background: 'var(--bg-darker)',
+                            border: '1px solid rgba(0,212,255,0.2)',
+                            borderRadius: 8,
+                            padding: '8px 12px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start',
+                            gap: 8,
+                        }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    {label}
+                                </div>
+                                <div style={{
+                                    fontSize: '0.85rem',
+                                    color: 'var(--text-primary)',
+                                    wordBreak: 'break-word',
+                                    fontFamily: key === 'description' ? 'inherit' : 'monospace',
+                                }}>
+                                    {value}
+                                </div>
+                            </div>
+                            <button
+                                id={`copy-${key}-btn`}
+                                onClick={() => copyField(key, value)}
+                                title="Скопировать"
+                                style={{
+                                    flexShrink: 0,
+                                    background: copied[key] ? 'rgba(0,255,128,0.15)' : 'rgba(0,212,255,0.1)',
+                                    border: `1px solid ${copied[key] ? 'rgba(0,255,128,0.5)' : 'rgba(0,212,255,0.35)'}`,
+                                    color: copied[key] ? '#00ff80' : 'var(--neon-cyan)',
+                                    borderRadius: 6,
+                                    padding: '5px 8px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    fontSize: '0.78rem',
+                                    fontWeight: 600,
+                                    transition: 'all 0.2s',
+                                    marginTop: 2,
+                                }}
+                            >
+                                {copied[key]
+                                    ? <><ClipboardCheck size={13} /> Скопировано</>
+                                    : <><Clipboard size={13} /> Копировать</>}
+                            </button>
+                        </div>
+                    ))}
+
+                    {/* Подсказка */}
+                    <div style={{
+                        marginTop: 4,
+                        fontSize: '0.78rem',
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5,
+                    }}>
+                        <Wand2 size={11} />
+                        Не нравится результат? Нажмите «Сгенерировать» ещё раз — описание изменится.
+                    </div>
+                </motion.div>
+            )}
+            </AnimatePresence>
         </div>
     );
 }
