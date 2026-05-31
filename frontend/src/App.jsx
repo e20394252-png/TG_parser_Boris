@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Activity, MessageSquare, Settings as SettingsIcon, Brain, BarChart3, Search, Bot, Send, BookOpen, LogOut } from 'lucide-react';
+import { Activity, MessageSquare, Settings as SettingsIcon, Brain, BarChart3, Search, Bot, Send, BookOpen, LogOut, Users } from 'lucide-react';
 import './App.css';
 
 /* Импорт Orbitron-шрифта для Nexus-бейджа */
@@ -22,6 +22,7 @@ import MessageHistory from './pages/MessageHistory';
 import ConversationSearch from './pages/ConversationSearch';
 import Broadcast from './pages/Broadcast';
 import Guide from './pages/Guide';
+import UsersPage from './pages/UsersPage';
 import SettingsPage, { DEFAULT_MENU_VISIBILITY } from './pages/SettingsPage';
 
 import MCPStatusIndicator from './components/MCPStatusIndicator';
@@ -36,12 +37,13 @@ const ALL_NAV = [
     { key: 'message-history', path: '/message-history', icon: MessageSquare,  label: 'История',         el: <MessageHistory /> },
     { key: 'conversations',   path: '/conversations',   icon: Search,         label: 'Поиск',           el: <ConversationSearch /> },
     { key: 'broadcast',       path: '/broadcast',       icon: Send,           label: 'Рассылка',        el: <Broadcast /> },
+    { key: 'users',           path: '/users',           icon: Users,          label: 'Пользователи',    el: <UsersPage />, adminOnly: true },
     { key: 'guide',           path: '/guide',           icon: BookOpen,       label: 'Инструкция',      el: <Guide /> },
 ];
 
 function AppContent() {
     const location = useLocation();
-    const { user, logout } = useAuth();
+    const { user, logout, isAdmin } = useAuth();
     const [mcpModalOpen, setMcpModalOpen] = useState(false);
     const [menuVisibility, setMenuVisibility] = useState(DEFAULT_MENU_VISIBILITY);
 
@@ -56,7 +58,10 @@ function AppContent() {
             .catch(() => {});
     }, []);
 
-    const visibleNav = ALL_NAV.filter(item => menuVisibility[item.key] !== false);
+    const visibleNav = ALL_NAV.filter(item => {
+        if (item.adminOnly && !isAdmin) return false;
+        return menuVisibility[item.key] !== false;
+    });
     const isActive = (path) => location.pathname === path;
 
     return (
