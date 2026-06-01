@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Activity, MessageSquare, Settings as SettingsIcon, Brain, BarChart3, Search, Bot, Send, BookOpen, LogOut, Users } from 'lucide-react';
+import { Activity, MessageSquare, Settings as SettingsIcon, Brain, BarChart3, Search, Bot, Send, BookOpen, LogOut, Users, Menu, X } from 'lucide-react';
 import './App.css';
 
 /* Импорт Orbitron-шрифта для Nexus-бейджа */
@@ -46,6 +46,7 @@ function AppContent() {
     const { user, logout, isAdmin } = useAuth();
     const [mcpModalOpen, setMcpModalOpen] = useState(false);
     const [menuVisibility, setMenuVisibility] = useState(DEFAULT_MENU_VISIBILITY);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
     useEffect(() => {
         settingsAPI.get()
@@ -66,7 +67,29 @@ function AppContent() {
 
     return (
         <div className="app">
-            <aside className="sidebar">
+            {/* Mobile hamburger */}
+            <button
+                className="mobile-hamburger"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Открыть меню"
+            >
+                <Menu size={24} />
+            </button>
+
+            {/* Mobile overlay */}
+            {sidebarOpen && (
+                <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
+            )}
+
+            <aside className={`sidebar ${sidebarOpen ? 'sidebar--open' : ''}`}>
+                {/* Mobile close button */}
+                <button
+                    className="sidebar-close"
+                    onClick={() => setSidebarOpen(false)}
+                    aria-label="Закрыть меню"
+                >
+                    <X size={22} />
+                </button>
                 <div className="sidebar-header">
                     <a
                         href="https://telegram-parser-frontend.onrender.com/"
@@ -95,7 +118,10 @@ function AppContent() {
 
                 <nav className="nav-items">
                     {visibleNav.map(item => (
-                        <Link key={item.key} to={item.path} className={`nav-item ${isActive(item.path) ? 'active' : ''}`}>
+                        <Link key={item.key} to={item.path}
+                            className={`nav-item ${isActive(item.path) ? 'active' : ''}`}
+                            onClick={() => setSidebarOpen(false)}
+                        >
                             <item.icon size={20} />
                             <span>{item.label}</span>
                         </Link>
@@ -121,7 +147,10 @@ function AppContent() {
 
                 <div className="sidebar-footer">
                     <MCPStatusIndicator onDetailsClick={() => setMcpModalOpen(true)} />
-                    <Link to="/settings" className={`settings-button ${isActive('/settings') ? 'active' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+                    <Link to="/settings" className={`settings-button ${isActive('/settings') ? 'active' : ''}`}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
+                        onClick={() => setSidebarOpen(false)}
+                    >
                         <SettingsIcon size={20} />
                         <span>Настройки</span>
                     </Link>

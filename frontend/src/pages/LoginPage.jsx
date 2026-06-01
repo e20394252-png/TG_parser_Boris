@@ -238,6 +238,7 @@ const styles = {
         fontFamily: "'Inter', 'Outfit', sans-serif",
         position: 'relative',
         overflow: 'hidden',
+        padding: '16px',
     },
     bg: {
         position: 'absolute', inset: 0, pointerEvents: 'none',
@@ -267,7 +268,7 @@ const styles = {
         WebkitBackdropFilter: 'blur(20px)',
         border: '1px solid rgba(255,255,255,0.08)',
         borderRadius: 24,
-        padding: '48px 40px',
+        padding: 'clamp(24px, 5vw, 48px) clamp(20px, 5vw, 40px)',
         width: '100%',
         maxWidth: 420,
         textAlign: 'center',
