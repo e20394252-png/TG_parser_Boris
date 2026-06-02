@@ -16,8 +16,15 @@ from telethon.errors import (
 from typing import Dict, Optional
 import os
 import logging
+import platform
 
 logger = logging.getLogger(__name__)
+
+# Параметры устройства — имитируем Telegram Desktop,
+# чтобы Telegram не отклонял клиент с UPDATE_APP_TO_LOGIN
+DEVICE_MODEL = "Telegram Parser"
+SYSTEM_VERSION = f"{platform.system()} {platform.release()}"
+APP_VERSION = "1.43.0"
 
 
 class TelegramClientManager:
@@ -92,7 +99,12 @@ class TelegramClientManager:
             session.auth_key = TelethonAuthKey(auth_key_bytes)
 
             logger.info(f"[TData] Подключение к Telegram (DC{dc_id})...")
-            client = TelegramClient(session, api_id, api_hash)
+            client = TelegramClient(
+                session, api_id, api_hash,
+                device_model=DEVICE_MODEL,
+                system_version=SYSTEM_VERSION,
+                app_version=APP_VERSION
+            )
             await client.connect()
 
             session_string = client.session.save()
@@ -133,7 +145,10 @@ class TelegramClientManager:
             client = TelegramClient(
                 StringSession(),
                 api_id,
-                api_hash
+                api_hash,
+                device_model=DEVICE_MODEL,
+                system_version=SYSTEM_VERSION,
+                app_version=APP_VERSION
             )
 
             await client.connect()
@@ -175,7 +190,10 @@ class TelegramClientManager:
             client = TelegramClient(
                 StringSession(session_string),
                 api_id,
-                api_hash
+                api_hash,
+                device_model=DEVICE_MODEL,
+                system_version=SYSTEM_VERSION,
+                app_version=APP_VERSION
             )
 
             await client.connect()
@@ -256,6 +274,9 @@ class TelegramClientManager:
                 StringSession(session_string),
                 api_id,
                 api_hash,
+                device_model=DEVICE_MODEL,
+                system_version=SYSTEM_VERSION,
+                app_version=APP_VERSION,
             )
             await client.connect()
 
