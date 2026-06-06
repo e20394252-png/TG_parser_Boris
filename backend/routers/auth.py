@@ -55,11 +55,13 @@ async def start_telegram_auth(
         
         if existing:
             session_id = existing['id']
-            # Обновляем API credentials
+            # Обновляем API credentials И привязываем к текущему пользователю
+            # (кто авторизуется сейчас — тот и владелец)
             await db.execute(
-                "UPDATE telegram_sessions SET api_id = $1, api_hash = $2 WHERE id = $3",
-                data.api_id, data.api_hash, session_id
+                "UPDATE telegram_sessions SET api_id = $1, api_hash = $2, user_id = $3 WHERE id = $4",
+                data.api_id, data.api_hash, user_id, session_id
             )
+            logger.info(f"[Auth] Сессия {session_id} ({data.phone_number}) переназначена user_id={user_id}")
         else:
             # Создаем новую сессию для текущего пользователя
             session_id = await db.fetchval(
@@ -97,10 +99,10 @@ async def submit_telegram_code(
     Подтверждение кода авторизации Telegram
     """
     try:
-        # Получаем session_id
+        # Получаем session_id — только свою сессию
         session = await db.fetchrow(
-            "SELECT id, api_id, api_hash FROM telegram_sessions WHERE phone_number = $1",
-            data.phone_number
+            "SELECT id, api_id, api_hash FROM telegram_sessions WHERE phone_number = $1 AND user_id = $2",
+            data.phone_number, user_id
         )
         
         if not session:
@@ -331,13 +333,15 @@ async def import_tdata(
 
         if existing:
             session_id = existing["id"]
+            # Обновляем данные И привязываем к текущему пользователю
             await db.execute(
                 """UPDATE telegram_sessions
-                   SET session_string = $1, api_id = $2, api_hash = $3,
+                   SET session_string = $1, api_id = $2, api_hash = $3, user_id = $4,
                        is_active = true, updated_at = CURRENT_TIMESTAMP
-                   WHERE id = $4""",
-                session_string, str(api_id), api_hash, session_id
+                   WHERE id = $5""",
+                session_string, str(api_id), api_hash, user_id, session_id
             )
+            logger.info(f"[TData] Сессия {session_id} ({display_phone}) переназначена user_id={user_id}")
         else:
             session_id = await db.fetchval(
                 """INSERT INTO telegram_sessions (user_id, phone_number, api_id, api_hash, session_string, is_active)
